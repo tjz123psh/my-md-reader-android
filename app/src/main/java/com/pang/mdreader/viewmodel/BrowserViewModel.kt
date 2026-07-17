@@ -13,8 +13,10 @@ import com.pang.mdreader.model.RecentFile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class BrowserUiState(
@@ -53,28 +55,43 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    private var scanJob: kotlinx.coroutines.Job? = null
+
     fun openWorkspace(uri: Uri) {
-        viewModelScope.launch {
+        // Cancel any previous scan
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 workspaceUri = uri,
                 workspaceName = fileRepo.getFileName(uri),
                 isLoading = true,
                 error = null,
+                files = emptyList(),
             )
 
             settingsRepo.setLastWorkspace(uri.toString())
 
             try {
-                val files = fileRepo.scanDirectory(uri)
-                _uiState.value = _uiState.value.copy(
-                    files = files,
-                    isLoading = false,
-                )
+                val files = fileRepo.scanDirectory(uri) { batch ->
+                    if (isActive) {
+                        _uiState.value = _uiState.value.copy(
+                            files = _uiState.value.files + batch,
+                        )
+                    }
+                }
+                if (isActive) {
+                    _uiState.value = _uiState.value.copy(
+                        files = files,
+                        isLoading = false,
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "无法扫描文件夹: ${e.message}",
-                )
+                if (isActive) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "无法扫描文件夹: ${e.message}",
+                    )
+                }
             }
         }
     }
