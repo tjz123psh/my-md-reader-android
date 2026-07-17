@@ -2,7 +2,6 @@ package com.pang.mdreader.viewmodel
 
 import android.app.Application
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pang.mdreader.data.FileRepository
@@ -10,13 +9,12 @@ import com.pang.mdreader.data.RecentFilesRepo
 import com.pang.mdreader.data.SettingsRepo
 import com.pang.mdreader.model.FileNode
 import com.pang.mdreader.model.RecentFile
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class BrowserUiState(
@@ -24,6 +22,7 @@ data class BrowserUiState(
     val workspaceName: String = "",
     val files: List<FileNode> = emptyList(),
     val expandedDirs: Set<String> = emptySet(),
+    val loadedDirs: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val error: String? = null,
 )
@@ -44,73 +43,83 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val lastWorkspaceUri: StateFlow<String?> = _lastWorkspaceUri.asStateFlow()
 
     init {
-        // Restore last workspace
         viewModelScope.launch {
             val uriStr = settingsRepo.lastWorkspaceFlow.stateIn(viewModelScope).value
             _lastWorkspaceUri.value = uriStr
             if (uriStr != null && uriStr.isNotEmpty()) {
-                val uri = Uri.parse(uriStr)
-                openWorkspace(uri)
+                openWorkspace(Uri.parse(uriStr))
             }
         }
     }
 
-    private var scanJob: kotlinx.coroutines.Job? = null
+    private var loadJob: Job? = null
 
     fun openWorkspace(uri: Uri) {
-        // Cancel any previous scan
-        scanJob?.cancel()
-        scanJob = viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _uiState.value = BrowserUiState(
                 workspaceUri = uri,
                 workspaceName = fileRepo.getFileName(uri),
                 isLoading = true,
-                error = null,
-                files = emptyList(),
             )
-
             settingsRepo.setLastWorkspace(uri.toString())
 
             try {
-                val files = fileRepo.scanDirectory(uri) { batch ->
-                    if (isActive) {
-                        _uiState.value = _uiState.value.copy(
-                            files = _uiState.value.files + batch,
-                        )
-                    }
-                }
-                if (isActive) {
-                    _uiState.value = _uiState.value.copy(
-                        files = files,
-                        isLoading = false,
-                    )
-                }
+                val children = fileRepo.listDirectory(uri)
+                _uiState.value = _uiState.value.copy(
+                    files = children,
+                    isLoading = false,
+                )
             } catch (e: Exception) {
-                if (isActive) {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = "无法扫描文件夹: ${e.message}",
-                    )
-                }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "无法打开文件夹: ${e.message}",
+                )
             }
         }
     }
 
     fun toggleDirectory(relativePath: String) {
-        val current = _uiState.value.expandedDirs.toMutableSet()
-        if (current.contains(relativePath)) {
-            current.remove(relativePath)
+        val state = _uiState.value
+        if (state.expandedDirs.contains(relativePath)) {
+            // Collapse: remove children and grandchildren
+            val prefix = "$relativePath/"
+            _uiState.value = state.copy(
+                files = state.files.filter { !it.relativePath.startsWith(prefix) },
+                expandedDirs = state.expandedDirs - relativePath,
+                loadedDirs = state.loadedDirs - relativePath,
+            )
         } else {
-            current.add(relativePath)
+            if (state.loadedDirs.contains(relativePath)) {
+                // Already loaded, just expand
+                _uiState.value = state.copy(
+                    expandedDirs = state.expandedDirs + relativePath,
+                )
+            } else {
+                // Load children lazily
+                val dirNode = state.files.find { it.relativePath == relativePath } ?: return
+                loadJob?.cancel()
+                loadJob = viewModelScope.launch {
+                    try {
+                        val children = fileRepo.listDirectory(dirNode.uri)
+                        val prefixed = children.map { child ->
+                            child.copy(relativePath = "$relativePath/${child.relativePath}")
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            files = _uiState.value.files + prefixed,
+                            expandedDirs = _uiState.value.expandedDirs + relativePath,
+                            loadedDirs = _uiState.value.loadedDirs + relativePath,
+                        )
+                    } catch (_: Exception) {
+                        // Silently fail — directory won't expand
+                    }
+                }
+            }
         }
-        _uiState.value = _uiState.value.copy(expandedDirs = current)
-    }
-
-    fun isDirectoryExpanded(relativePath: String): Boolean {
-        return _uiState.value.expandedDirs.contains(relativePath)
     }
 
     fun clearWorkspace() {
+        loadJob?.cancel()
         _uiState.value = BrowserUiState()
         viewModelScope.launch {
             settingsRepo.setLastWorkspace(null)
