@@ -12,10 +12,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -113,6 +115,10 @@ fun MarkdownView(
 
     AndroidView(
         modifier = modifier,
+        onRelease = {
+            // C2: Destroy WebView when composable leaves the tree
+            it.destroy()
+        },
         factory = { ctx ->
             WebView(ctx).apply {
                 layoutParams = ViewGroup.LayoutParams(
@@ -198,14 +204,6 @@ fun MarkdownView(
                     }
                 }
 
-                loadDataWithBaseURL(
-                    "file:///android_asset/reader/",
-                    htmlContent,
-                    "text/html",
-                    "utf-8",
-                    null
-                )
-
                 webView = this
             }
         },
@@ -213,6 +211,23 @@ fun MarkdownView(
             webView = view
         },
     )
+
+    // C1: Reload WebView when content or theme changes (triggers on first load too)
+    LaunchedEffect(htmlContent) {
+        // Wait for WebView to be available (may not be ready on first composition)
+        var attempts = 0
+        while (webView == null && attempts < 20) {
+            delay(50)
+            attempts++
+        }
+        webView?.loadDataWithBaseURL(
+            "file:///android_asset/reader/",
+            htmlContent,
+            "text/html",
+            "utf-8",
+            null
+        )
+    }
 
     // React to zoom changes from outside
     DisposableEffect(zoom) {

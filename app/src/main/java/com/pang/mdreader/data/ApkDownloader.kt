@@ -33,25 +33,28 @@ object ApkDownloader {
                 conn.instanceFollowRedirects = true
 
                 if (conn.responseCode != 200) {
+                    conn.disconnect()
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "下载失败 (HTTP ${conn.responseCode})", Toast.LENGTH_LONG).show()
                     }
                     return@withContext false
                 }
 
-                val inputStream = conn.inputStream
-                val outputStream = apkFile.outputStream()
                 val buffer = ByteArray(8192)
-                var bytesRead: Int
                 var totalBytes = 0L
                 val contentLength = conn.contentLengthLong
 
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    outputStream.write(buffer, 0, bytesRead)
-                    totalBytes += bytesRead
+                // C3: use .use {} to ensure streams close even on exception
+                conn.inputStream.use { inputStream ->
+                    apkFile.outputStream().use { outputStream ->
+                        var bytesRead: Int
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            totalBytes += bytesRead
+                        }
+                    }
                 }
-                outputStream.close()
-                inputStream.close()
+                conn.disconnect()
 
                 if (contentLength > 0 && totalBytes < contentLength) {
                     withContext(Dispatchers.Main) {
