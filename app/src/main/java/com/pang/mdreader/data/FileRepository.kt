@@ -24,15 +24,21 @@ class FileRepository(private val context: Context) {
     /**
      * List immediate children of a directory — one query, no recursion.
      * Returns FileNodes for both directories and markdown files inside this directory only.
+     * @param rootTreeUri the original tree URI from folder picker (needed for SAF subdirectory queries)
      */
-    suspend fun listDirectory(uri: Uri): List<FileNode> = withContext(Dispatchers.IO) {
-        listChildren(uri)
+    suspend fun listDirectory(uri: Uri, rootTreeUri: Uri): List<FileNode> = withContext(Dispatchers.IO) {
+        listChildren(uri, rootTreeUri)
     }
 
-    private fun listChildren(treeUri: Uri): List<FileNode> {
+    private fun listChildren(parentUri: Uri, rootTreeUri: Uri): List<FileNode> {
         return try {
-            val docId = DocumentsContract.getTreeDocumentId(treeUri)
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
+            // Use getDocumentId for subdirectories, getTreeDocumentId for root
+            val docId = try {
+                DocumentsContract.getDocumentId(parentUri)
+            } catch (_: Exception) {
+                DocumentsContract.getTreeDocumentId(parentUri)
+            }
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(rootTreeUri, docId)
             val columns = arrayOf(
                 DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME,
@@ -49,7 +55,7 @@ class FileRepository(private val context: Context) {
                     val isDir = DocumentsContract.Document.MIME_TYPE_DIR == mime
                     if (!isDir && !isMarkdownFile(name)) continue
                     if (name.startsWith('.')) continue
-                    val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+                    val childUri = DocumentsContract.buildDocumentUriUsingTree(rootTreeUri, id)
                     result.add(
                         FileNode(
                             uri = childUri,

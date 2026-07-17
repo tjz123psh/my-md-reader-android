@@ -65,7 +65,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             settingsRepo.setLastWorkspace(uri.toString())
 
             try {
-                val children = fileRepo.listDirectory(uri)
+                val children = fileRepo.listDirectory(uri, uri)
                 _uiState.value = _uiState.value.copy(
                     files = children,
                     isLoading = false,
@@ -98,10 +98,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             } else {
                 // Load children lazily
                 val dirNode = state.files.find { it.relativePath == relativePath } ?: return
+                val rootUri = state.workspaceUri ?: return
                 loadJob?.cancel()
                 loadJob = viewModelScope.launch {
                     try {
-                        val children = fileRepo.listDirectory(dirNode.uri)
+                        val children = fileRepo.listDirectory(dirNode.uri, rootUri)
                         val prefixed = children.map { child ->
                             child.copy(relativePath = "$relativePath/${child.relativePath}")
                         }
