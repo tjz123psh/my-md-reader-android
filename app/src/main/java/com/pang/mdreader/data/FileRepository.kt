@@ -94,7 +94,12 @@ class FileRepository(private val context: Context) {
      *
      * Handles both standard markdown ![...](...) and Obsidian ![[...]] syntax.
      */
-    suspend fun resolveImageUris(markdown: String, fileUri: Uri): String = withContext(Dispatchers.IO) {
+    /**
+     * Scan markdown text for image references and replace them with base64 data URIs.
+     * First tries the exact observed path, then searches the parent directory via SAF query.
+     * @param rootTreeUri the original tree URI from folder picker (optional, for SAF queries)
+     */
+    suspend fun resolveImageUris(markdown: String, fileUri: Uri, rootTreeUri: Uri? = null): String = withContext(Dispatchers.IO) {
         if (markdown.isEmpty()) return@withContext markdown
 
         val authority = fileUri.authority ?: return@withContext markdown
@@ -107,55 +112,96 @@ class FileRepository(private val context: Context) {
             val rawPath = match.groupValues[2].ifEmpty {
                 match.groupValues[3].split("|")[0].trim()
             }
-            // Skip URLs and data URIs
             if (rawPath.startsWith("http://") || rawPath.startsWith("https://") || rawPath.startsWith("data:")) {
                 return@replace match.value
             }
 
-            // Try multiple candidate paths (same dir, Obsidian attachment subdirs, etc.)
-            var foundStream: java.io.InputStream? = null
-            var foundMime = "image/png"
-            var foundAlt = match.groupValues[1].ifEmpty {
+            val alt = match.groupValues[1].ifEmpty {
                 rawPath.substringAfterLast("/").substringBeforeLast(".")
             }
 
+            // Strategy 1: try resolving path relative to file's directory
+            var foundUri: Uri? = null
             for (candidateDocId in resolveImageCandidates(parentDocId, rawPath)) {
                 val candUri = DocumentsContract.buildDocumentUri(authority, candidateDocId)
                 try {
-                    val stream = context.contentResolver.openInputStream(candUri)
-                    if (stream != null) {
-                        android.util.Log.d("MDReader-IMG", "FOUND: $rawPath → $candidateDocId")
-                        foundStream = stream
-                        foundMime = getImageMimeType(rawPath, candUri)
-                        break
-                    }
-                } catch (_: java.io.FileNotFoundException) {
-                    android.util.Log.d("MDReader-IMG", "NOT_FOUND: $candidateDocId ($rawPath)")
-                } catch (_: SecurityException) {
-                    android.util.Log.d("MDReader-IMG", "PERM_DENIED: $candidateDocId ($rawPath)")
+                    context.contentResolver.openInputStream(candUri)?.close()
+                    android.util.Log.d("MDReader-IMG", "FOUND strategy1: $rawPath → $candidateDocId")
+                    foundUri = candUri
+                    break
+                } catch (_: Exception) {
+                    android.util.Log.d("MDReader-IMG", "strategy1 MISS: $candidateDocId")
                 }
             }
 
-            if (foundStream != null) {
+            // Strategy 2: search SAF children of parent directory for the filename
+            if (foundUri == null && rootTreeUri != null) {
+                foundUri = searchImageInTree(rootTreeUri, authority, parentDocId, rawPath)
+                if (foundUri != null) {
+                    android.util.Log.d("MDReader-IMG", "FOUND strategy2: $rawPath → $foundUri")
+                }
+            }
+
+            if (foundUri != null) {
                 try {
-                    val bytes = foundStream.use { it.readBytes() }
+                    val inputStream = context.contentResolver.openInputStream(foundUri) ?: return@replace match.value
+                    val bytes = inputStream.use { it.readBytes() }
                     if (bytes.isNotEmpty()) {
+                        val mime = getImageMimeType(rawPath, foundUri)
                         val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                        return@replace "![$foundAlt](data:$foundMime;base64,$b64)"
+                        return@replace "![$alt](data:$mime;base64,$b64)"
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("MDReader-IMG", "READ_ERROR: ${e.message} | $rawPath")
                 }
-            } else {
-                android.util.Log.e("MDReader-IMG", "ALL_FAILED: $rawPath (parent=$parentDocId)")
             }
-            match.value
+
+            android.util.Log.e("MDReader-IMG", "ALL_FAILED: $rawPath (parentDocId=$parentDocId)")
+            // Don't return original — show helpful placeholder instead of raw syntax
+            return@replace "![图片未找到: $alt]()"
         }
     }
 
     /**
+     * Search for an image file by name in the given directory and its immediate subdirectories.
+     * This handles Obsidian's attachment folder pattern where images are in a subdirectory.
+     */
+    private fun searchImageInTree(treeUri: Uri, authority: String, parentDocId: String, imageName: String): Uri? {
+        val searchDirs = mutableSetOf(parentDocId)
+
+        // Also search Obsidian attachment subdirectories
+        for (dir in listOf("附件", "附", "attachments", "assets", "images", "img", "_resources", "media")) {
+            searchDirs.add("$parentDocId/$dir")
+        }
+
+        for (dirDocId in searchDirs) {
+            try {
+                val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, dirDocId)
+                val columns = arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                )
+                val cursor = context.contentResolver.query(childrenUri, columns, null, null, null)
+                cursor?.use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getString(0) ?: continue
+                        val name = c.getString(1) ?: continue
+                        val mime = c.getString(2) ?: ""
+                        if (mime.startsWith("image/") && name.equals(imageName, ignoreCase = true)) {
+                            return DocumentsContract.buildDocumentUri(authority, id)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Directory may not exist
+            }
+        }
+        return null
+    }
+
+    /**
      * Generate candidate document IDs for a relative image path.
-     * Handles: same directory, Obsidian attachment subdirectories.
      */
     private fun resolveImageCandidates(parentPath: String, imagePath: String): List<String> {
         val candidates = mutableListOf<String>()
@@ -170,22 +216,12 @@ class FileRepository(private val context: Context) {
             return candidates
         }
 
-        // Candidate 1: directly resolve in parent (handles . and ..)
+        // Same directory
         candidates.add(resolveSingle(parentPath, imagePath))
 
-        // Candidate 2+: try Obsidian attachment folder conventions
-        val obsidianAttachDirs = listOf("附件", "attachments", "assets", "images", "_resources")
-        for (dir in obsidianAttachDirs) {
-            val attachCandidate = if (parentPath.contains("/$dir/") || parentPath.endsWith("/$dir")) {
-                // Image is in a parent + attachment dir; file ref is just the filename
-                resolveSingle(parentPath, "$dir/$imagePath")
-            } else {
-                // Try parent/attachment-subdir/ directly
-                "$parentPath/$dir/$imagePath"
-            }
-            if (attachCandidate != candidates.first()) {
-                candidates.add(attachCandidate)
-            }
+        // Try common attachment subdirectories
+        for (dir in listOf("附件", "attachments", "assets", "images", "_resources")) {
+            candidates.add("$parentPath/$dir/$imagePath")
         }
         return candidates
     }

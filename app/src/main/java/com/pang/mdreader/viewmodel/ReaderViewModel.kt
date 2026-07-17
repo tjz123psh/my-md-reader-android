@@ -50,7 +50,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun loadFile(fileNode: FileNode) {
+    fun loadFile(fileNode: FileNode, rootTreeUri: Uri? = null) {
         if (fileNode.isDirectory) return
         if (fileNode.uri == currentFileUri && _state.value.content.isNotEmpty()) return
 
@@ -75,8 +75,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
             val result = fileRepo.readFile(fileNode.uri)
             result.onSuccess { content ->
-                // Resolve image references to content:// URIs (loaded via shouldInterceptRequest)
-                val processed = fileRepo.resolveImageUris(content, fileNode.uri)
+                // Resolve image references to base64 data URIs
+                val processed = fileRepo.resolveImageUris(content, fileNode.uri, rootTreeUri)
                 _state.value = _state.value.copy(
                     content = processed,
                     isLoading = false,

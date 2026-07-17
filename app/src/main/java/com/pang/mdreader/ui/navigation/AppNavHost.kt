@@ -47,7 +47,7 @@ fun AppNavHost(
             BrowserScreen(
                 viewModel = browserViewModel,
                 onFileSelected = { fileNode ->
-                    readerViewModel.loadFile(fileNode)
+                    readerViewModel.loadFile(fileNode, browserViewModel.uiState.value.workspaceUri)
                     browserViewModel.addRecentFile(fileNode)
                     navController.navigate(Routes.readerRoute(fileNode))
                 },
@@ -58,7 +58,7 @@ fun AppNavHost(
                         name = recentFile.name,
                         isDirectory = false,
                     )
-                    readerViewModel.loadFile(fileNode)
+                    readerViewModel.loadFile(fileNode, browserViewModel.uiState.value.workspaceUri)
                     // Open the workspace if not already open
                     if (browserViewModel.uiState.value.workspaceUri?.toString() != recentFile.workspaceUri) {
                         val wsUri = Uri.parse(recentFile.workspaceUri)
