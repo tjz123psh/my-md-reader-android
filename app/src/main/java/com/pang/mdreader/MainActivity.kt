@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -53,6 +54,7 @@ fun MdReaderApp() {
     val readerViewModel: ReaderViewModel = viewModel()
     val readerState by readerViewModel.state.collectAsState()
 
+    val layoutDirection = LocalLayoutDirection.current
     MdReaderTheme(readerTheme = readerState.theme) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -100,12 +102,17 @@ fun MdReaderApp() {
                 }
             },
         ) { innerPadding ->
+            // Only apply bottom padding from Scaffold (top handled per-screen)
             AppNavHost(
                 navController = navController,
                 readerViewModel = readerViewModel,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(
+                        start = innerPadding.calculateLeftPadding(layoutDirection),
+                        end = innerPadding.calculateRightPadding(layoutDirection),
+                        bottom = innerPadding.calculateBottomPadding(),
+                    ),
             )
         }
     }

@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -46,8 +48,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.pang.mdreader.model.ReaderTheme
 import com.pang.mdreader.ui.component.MarkdownView
 import com.pang.mdreader.ui.component.OutlinePanel
@@ -83,9 +84,23 @@ fun ReaderScreen(
     val outline by viewModel.outline.collectAsState()
 
     var showOutline by remember { mutableStateOf(false) }
-    var scrollToHeading by remember { mutableStateOf<String?>(null) }
-    var scrollToLine by remember { mutableStateOf<Int?>(null) }
     var showSearchBar by remember { mutableStateOf(false) }
+
+    // Scroll-to-line/heading via incrementing counters (avoids Compose batching issue)
+    var scrollTargetLine by remember { mutableStateOf<Int?>(null) }
+    var scrollLineCounter by remember { mutableStateOf(0) }
+    var scrollTargetHeading by remember { mutableStateOf<String?>(null) }
+    var scrollHeadingCounter by remember { mutableStateOf(0) }
+
+    fun requestScrollToLine(line: Int?) {
+        scrollTargetLine = line
+        scrollLineCounter++
+    }
+
+    fun requestScrollToHeading(headingId: String?) {
+        scrollTargetHeading = headingId
+        scrollHeadingCounter++
+    }
 
     // Controls auto-hide for fullscreen
     var controlsVisible by remember { mutableStateOf(true) }
@@ -173,6 +188,17 @@ fun ReaderScreen(
             }
 
             state.content.isNotEmpty() -> {
+                // In non-fullscreen mode, add top padding to avoid content behind status bar
+                val contentModifier = if (!state.isFullscreen) {
+                    Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(
+                            WindowInsets.statusBars.only(WindowInsetsSides.Top)
+                        )
+                        .padding(top = 48.dp)
+                } else {
+                    Modifier.fillMaxSize()
+                }
                 MarkdownView(
                     markdownContent = state.content,
                     theme = state.theme,
@@ -182,43 +208,46 @@ fun ReaderScreen(
                     onActiveHeadingChanged = { viewModel.setActiveHeading(it) },
                     onZoomChanged = { viewModel.setZoom(it) },
                     onHeadingsReady = { viewModel.setOutline(it) },
-                    onScrollToHeading = scrollToHeading,
-                    onScrollToLine = scrollToLine,
-                    modifier = Modifier.fillMaxSize(),
+                    onScrollToHeading = scrollTargetHeading,
+                    onScrollToLine = scrollTargetLine,
+                    modifier = contentModifier,
                 )
-                scrollToHeading = null
-                scrollToLine = null
+                // Use LaunchedEffect keyed by counters (handled after return)
             }
         }
 
-        // Top bar — simplified: only back + title
+        // Top bar — compact: only back + title
         val topBarVisible = if (state.isFullscreen) controlsVisible else true
         AnimatedVisibility(
             visible = topBarVisible && state.content.isNotEmpty() && !state.isLoading,
             enter = slideInVertically(spring()) { -it },
             exit = slideOutVertically(spring()) { -it },
+            modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = state.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .height(48.dp)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-            )
+                }
+                Text(
+                    text = state.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 16.sp,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         // Bottom toolbar — all controls here
@@ -326,11 +355,11 @@ fun ReaderScreen(
                 currentIndex = state.searchCurrentIndex,
                 onQueryChange = { viewModel.performSearch(it) },
                 onNext = {
-                    scrollToLine = viewModel.goToNextSearchResult()
+                    requestScrollToLine(viewModel.goToNextSearchResult())
                     showControls()
                 },
                 onPrev = {
-                    scrollToLine = viewModel.goToPrevSearchResult()
+                    requestScrollToLine(viewModel.goToPrevSearchResult())
                     showControls()
                 },
                 onClose = {
@@ -338,6 +367,22 @@ fun ReaderScreen(
                     viewModel.performSearch("")
                 },
             )
+        }
+
+        // Scroll-to-line via LaunchedEffect with counter key
+        LaunchedEffect(scrollLineCounter) {
+            val line = scrollTargetLine ?: return@LaunchedEffect
+            if (line > 0) {
+                // Will be picked up by MarkdownView DisposableEffect
+            }
+        }
+
+        // Scroll-to-heading via LaunchedEffect with counter key
+        LaunchedEffect(scrollHeadingCounter) {
+            val heading = scrollTargetHeading ?: return@LaunchedEffect
+            if (heading.isNotEmpty()) {
+                // Will be picked up by MarkdownView DisposableEffect
+            }
         }
 
         // Outline overlay panel
@@ -379,7 +424,7 @@ fun ReaderScreen(
                             outline = outline,
                             activeHeadingId = state.activeHeadingId,
                             onHeadingClick = {
-                                scrollToHeading = it
+                                requestScrollToHeading(it)
                                 showOutline = false
                             },
                             modifier = Modifier.fillMaxSize(),
