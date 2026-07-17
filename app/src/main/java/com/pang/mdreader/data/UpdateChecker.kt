@@ -41,8 +41,8 @@ object UpdateChecker {
                 for (i in 0 until assets.length()) {
                     val asset = assets.optJSONObject(i)
                     val name = asset?.optString("name", "") ?: ""
-                    // Prefer the debug APK (smaller, works on all devices)
-                    if (name.endsWith("-debug.apk")) {
+                    // Prefer the debug APK (works on all devices without signing issues)
+                    if (name.endsWith("debug.apk")) {
                         downloadUrl = asset.optString("browser_download_url", "")
                         break
                     }
