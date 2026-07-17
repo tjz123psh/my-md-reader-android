@@ -97,11 +97,7 @@ class FileRepository(private val context: Context) {
     suspend fun resolveImageUris(markdown: String, fileUri: Uri): String = withContext(Dispatchers.IO) {
         if (markdown.isEmpty()) return@withContext markdown
 
-        // fileUri e.g. content://.../document/primary%3ADocuments%2Fnotes%2Ffile.md
-        val encodedPath = fileUri.encodedPath  // /document/primary%3ADocuments%2Fnotes%2Ffile.md
-        val prefix = encodedPath?.substringBeforeLast("/")  // /document/primary%3ADocuments%2Fnotes
-        if (prefix == null || fileUri.authority == null) return@withContext markdown
-
+        val authority = fileUri.authority ?: return@withContext markdown
         val docId = Uri.decode(fileUri.lastPathSegment ?: return@withContext markdown)
         val parentDocId = docId.substringBeforeLast("/", "")
 
@@ -117,8 +113,8 @@ class FileRepository(private val context: Context) {
             }
 
             val resolvedDocId = try { resolveImagePath(parentDocId, rawPath) } catch (_: Exception) { rawPath }
-            val imgEncoded = Uri.encode(resolvedDocId)
-            val imageUri = fileUri.buildUpon().encodedPath("$prefix/$imgEncoded").build()
+            // Use SAF API to build a proper content:// URI (avoids double-encoding bugs)
+            val imageUri = DocumentsContract.buildDocumentUri(authority, resolvedDocId)
 
             val alt = match.groupValues[1].ifEmpty {
                 rawPath.substringAfterLast("/").substringBeforeLast(".")
