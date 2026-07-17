@@ -101,7 +101,11 @@ fun ReaderScreen(
         scrollHeadingCounter++
     }
 
-    // Controls start HIDDEN — tap screen to show, auto-hide after 3s idle
+    // Controls start HIDDEN — behavior depends on user setting
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsRepo = remember { com.pang.mdreader.data.SettingsRepo(context) }
+    val toolbarBehavior by settingsRepo.toolbarBehaviorFlow.collectAsState(initial = com.pang.mdreader.data.SettingsRepo.TOOLBAR_AUTO_HIDE)
+
     var controlsVisible by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var hideJob by remember { mutableStateOf<Job?>(null) }
@@ -114,16 +118,27 @@ fun ReaderScreen(
         }
     }
 
-    fun showControls() {
-        controlsVisible = true
-        scheduleAutoHide()
+    fun handleTap() {
+        if (toolbarBehavior == com.pang.mdreader.data.SettingsRepo.TOOLBAR_TAP_TOGGLE) {
+            controlsVisible = !controlsVisible  // toggle — no timer
+        } else {
+            controlsVisible = true
+            scheduleAutoHide()                  // show + 3s timer
+        }
     }
 
-    // Tap anywhere on screen → show controls (non-consuming, WebView still works)
+    fun keepControlsShown() {
+        controlsVisible = true
+        if (toolbarBehavior != com.pang.mdreader.data.SettingsRepo.TOOLBAR_TAP_TOGGLE) {
+            scheduleAutoHide()  // reset timer in auto-hide mode
+        }
+    }
+
+    // Tap anywhere on screen → controls toggle or show+auto-hide
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
+            .pointerInput(toolbarBehavior) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
@@ -132,7 +147,7 @@ fun ReaderScreen(
                             val up = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                             val upChange = up.changes.firstOrNull()
                             if (upChange != null && !upChange.pressed) {
-                                scope.launch { showControls() }
+                                scope.launch { handleTap() }
                             }
                         }
                     }
@@ -251,12 +266,12 @@ fun ReaderScreen(
                         onClick = {
                             showSearchBar = !showSearchBar
                             if (!showSearchBar) viewModel.performSearch("")
-                            showControls()
+                            keepControlsShown()
                         },
                     )
 
                     // Zoom out
-                    IconButton(onClick = { viewModel.setZoom(state.zoom - 5); showControls() }) {
+                    IconButton(onClick = { viewModel.setZoom(state.zoom - 5); keepControlsShown() }) {
                         Icon(Icons.Default.TextDecrease, contentDescription = "缩小")
                     }
 
@@ -267,7 +282,7 @@ fun ReaderScreen(
                     )
 
                     // Zoom in
-                    IconButton(onClick = { viewModel.setZoom(state.zoom + 5); showControls() }) {
+                    IconButton(onClick = { viewModel.setZoom(state.zoom + 5); keepControlsShown() }) {
                         Icon(Icons.Default.TextIncrease, contentDescription = "放大")
                     }
 
@@ -281,13 +296,13 @@ fun ReaderScreen(
                                 ReaderTheme.SYSTEM -> ReaderTheme.WARM_LIGHT
                             }
                         )
-                        showControls()
+                        keepControlsShown()
                     }) {
                         Icon(Icons.Default.BrightnessMedium, contentDescription = "切换主题")
                     }
 
                     // Outline
-                    IconButton(onClick = { showOutline = !showOutline; showControls() }) {
+                    IconButton(onClick = { showOutline = !showOutline; keepControlsShown() }) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = "目录")
                     }
 
@@ -311,11 +326,11 @@ fun ReaderScreen(
                 onQueryChange = { viewModel.performSearch(it) },
                 onNext = {
                     requestScrollToLine(viewModel.goToNextSearchResult())
-                    showControls()
+                    keepControlsShown()
                 },
                 onPrev = {
                     requestScrollToLine(viewModel.goToPrevSearchResult())
-                    showControls()
+                    keepControlsShown()
                 },
                 onClose = {
                     showSearchBar = false

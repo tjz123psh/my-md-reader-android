@@ -23,10 +23,14 @@ class SettingsRepo(private val context: Context) {
         private val KEY_LAST_DOCUMENT = stringPreferencesKey("last_document_uri")
         private val KEY_WINDOW_WIDTH = intPreferencesKey("window_width")
         private val KEY_WINDOW_HEIGHT = intPreferencesKey("window_height")
+        private val KEY_TOOLBAR_BEHAVIOR = stringPreferencesKey("toolbar_behavior")
 
         const val DEFAULT_ZOOM = 100
         const val MIN_ZOOM = 75
         const val MAX_ZOOM = 200
+
+        const val TOOLBAR_AUTO_HIDE = "auto_hide"
+        const val TOOLBAR_TAP_TOGGLE = "tap_toggle"
     }
 
     val zoomFlow: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -36,6 +40,10 @@ class SettingsRepo(private val context: Context) {
     val themeFlow: Flow<ReaderTheme> = context.dataStore.data.map { prefs ->
         val id = prefs[KEY_THEME] ?: ReaderTheme.WARM_LIGHT.id
         ReaderTheme.entries.firstOrNull { it.id == id } ?: ReaderTheme.WARM_LIGHT
+    }
+
+    val toolbarBehaviorFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_TOOLBAR_BEHAVIOR] ?: TOOLBAR_AUTO_HIDE
     }
 
     val lastWorkspaceFlow: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -58,6 +66,12 @@ class SettingsRepo(private val context: Context) {
         }
     }
 
+    suspend fun setToolbarBehavior(behavior: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_TOOLBAR_BEHAVIOR] = behavior
+        }
+    }
+
     suspend fun setLastWorkspace(uri: String?) {
         context.dataStore.edit { prefs ->
             if (uri != null) prefs[KEY_LAST_WORKSPACE] = uri else prefs.remove(KEY_LAST_WORKSPACE)
@@ -75,4 +89,6 @@ class SettingsRepo(private val context: Context) {
         val id = context.dataStore.data.first()[KEY_THEME] ?: ReaderTheme.WARM_LIGHT.id
         return ReaderTheme.entries.firstOrNull { it.id == id } ?: ReaderTheme.WARM_LIGHT
     }
+    suspend fun getToolbarBehavior(): String =
+        context.dataStore.data.first()[KEY_TOOLBAR_BEHAVIOR] ?: TOOLBAR_AUTO_HIDE
 }

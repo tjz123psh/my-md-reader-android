@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pang.mdreader.data.ApkDownloader
+import com.pang.mdreader.data.SettingsRepo
 import com.pang.mdreader.data.UpdateChecker
 import com.pang.mdreader.data.UpdateInfo
 import com.pang.mdreader.model.ReaderTheme
@@ -57,6 +58,8 @@ fun SettingsScreen(
     val currentTheme by readerViewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val settingsRepo = remember { SettingsRepo(context) }
+    val toolbarBehavior by settingsRepo.toolbarBehaviorFlow.collectAsState(initial = SettingsRepo.TOOLBAR_AUTO_HIDE)
 
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var checkingUpdate by remember { mutableStateOf(false) }
@@ -115,6 +118,39 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Toolbar behavior
+            Text(
+                text = "工具栏模式",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            ) {
+                Column {
+                    ToolbarBehaviorOption(
+                        label = "自动隐藏",
+                        description = "点击屏幕显示 → 3 秒无操作自动隐藏",
+                        isSelected = toolbarBehavior == SettingsRepo.TOOLBAR_AUTO_HIDE,
+                        onClick = { scope.launch { settingsRepo.setToolbarBehavior(SettingsRepo.TOOLBAR_AUTO_HIDE) } },
+                    )
+                    ToolbarBehaviorOption(
+                        label = "点击切换",
+                        description = "点击屏幕显示 → 再点隐藏",
+                        isSelected = toolbarBehavior == SettingsRepo.TOOLBAR_TAP_TOGGLE,
+                        onClick = { scope.launch { settingsRepo.setToolbarBehavior(SettingsRepo.TOOLBAR_TAP_TOGGLE) } },
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             // About section
             Text(
                 text = "关于",
@@ -137,7 +173,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "版本 1.2.0",
+                        text = "版本 ${UpdateChecker.CURRENT_VERSION}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -188,7 +224,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = "当前版本 1.1.0",
+                            text = "当前版本 ${UpdateChecker.CURRENT_VERSION}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -279,6 +315,43 @@ private fun ThemeOption(
                     ReaderTheme.GITHUB -> "简洁的浅色风格，参考 GitHub"
                     ReaderTheme.SYSTEM -> "跟随系统明暗设置"
                 },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "已选择",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolbarBehaviorOption(
+    label: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
