@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MD Reader</string>
+    <string name="open_folder">打开文件夹</string>
+    <string name="search">搜索</string>
+    <string name="outline">目录</string>
+    <string name="zoom_in">放大</string>
+    <string name="zoom_out">缩小</string>
+    <string name="theme">主题</string>
+    <string name="settings">设置</string>
+    <string name="back">返回</string>
+</resources>
