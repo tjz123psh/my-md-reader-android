@@ -14,10 +14,13 @@ data class UpdateInfo(
     val latestVersion: String,
     val downloadUrl: String,
     val releaseNotes: String,
+    val error: String = "",       // non-empty means check failed
+    val fallbackUrl: String = "", // direct GitHub releases page if API fails
 )
 
 object UpdateChecker {
     private const val REPO_API = "https://api.github.com/repos/tjz123psh/my-md-reader-android/releases/latest"
+    private const val RELEASES_URL = "https://github.com/tjz123psh/my-md-reader-android/releases"
     /** Single source of truth for app version. Keep in sync with app/build.gradle.kts → versionName */
     const val CURRENT_VERSION = "1.3.3"
 
@@ -25,14 +28,23 @@ object UpdateChecker {
         try {
             val conn = URL(REPO_API).openConnection() as HttpURLConnection
             conn.setRequestProperty("Accept", "application/vnd.github+json")
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
 
             if (conn.responseCode != 200) {
-                return@withContext UpdateInfo(false, CURRENT_VERSION, "", "")
+                val msg = "服务器返回 ${conn.responseCode}"
+                return@withContext UpdateInfo(
+                    hasUpdate = false,
+                    latestVersion = CURRENT_VERSION,
+                    downloadUrl = "",
+                    releaseNotes = "",
+                    error = msg,
+                    fallbackUrl = RELEASES_URL,
+                )
             }
 
-            val json = JSONObject(conn.inputStream.bufferedReader().readText())
+            val body = conn.inputStream.bufferedReader().readText()
+            val json = JSONObject(body)
             val tagName = json.optString("tag_name", "").removePrefix("v")
             val releaseNotes = json.optString("body", "").take(500)
             val assets = json.optJSONArray("assets")
@@ -60,9 +72,18 @@ object UpdateChecker {
                 latestVersion = tagName.ifEmpty { CURRENT_VERSION },
                 downloadUrl = downloadUrl,
                 releaseNotes = releaseNotes,
+                fallbackUrl = RELEASES_URL,
             )
-        } catch (_: Exception) {
-            UpdateInfo(false, CURRENT_VERSION, "", "")
+        } catch (e: Exception) {
+            val msg = e.message ?: "网络请求失败"
+            UpdateInfo(
+                hasUpdate = false,
+                latestVersion = CURRENT_VERSION,
+                downloadUrl = "",
+                releaseNotes = "",
+                error = msg,
+                fallbackUrl = RELEASES_URL,
+            )
         }
     }
 

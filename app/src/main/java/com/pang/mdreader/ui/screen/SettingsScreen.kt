@@ -274,6 +274,40 @@ fun SettingsScreen(
                     }
                 },
             )
+        } else if (updateInfo!!.error.isNotEmpty()) {
+            // API failed — show error and fallback link
+            AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                title = { Text("检查更新失败") },
+                text = {
+                    Column {
+                        Text(
+                            text = "无法连接到更新服务器：${updateInfo!!.error}",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("请稍后重试，或直接前往 GitHub 页面手动下载最新版本。")
+                    }
+                },
+                confirmButton = {
+                    val openUrl: (String) -> Unit = {
+                        try {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                    .setData(android.net.Uri.parse(updateInfo!!.fallbackUrl))
+                            )
+                        } catch (_: Exception) {}
+                    }
+                    Button(onClick = { openUrl(updateInfo!!.fallbackUrl) }) {
+                        Text("手动下载")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text("关闭")
+                    }
+                },
+            )
         } else {
             AlertDialog(
                 onDismissRequest = { updateInfo = null },
