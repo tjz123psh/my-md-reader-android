@@ -19,7 +19,7 @@ data class UpdateInfo(
 object UpdateChecker {
     private const val REPO_API = "https://api.github.com/repos/tjz123psh/my-md-reader-android/releases/latest"
     /** Single source of truth for app version. Keep in sync with app/build.gradle.kts → versionName */
-    const val CURRENT_VERSION = "1.3.2"
+    const val CURRENT_VERSION = "1.3.3"
 
     suspend fun check(): UpdateInfo = withContext(Dispatchers.IO) {
         try {

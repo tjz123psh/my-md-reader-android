@@ -22,26 +22,23 @@
         return `![${name}](${encodeURI(name)})`;
       });
 
-      // Auto-generate heading IDs so getHeadings() and scrollToHeading() work
-      md.renderer.rules.heading_open = function (tokens, idx, options, env, self) {
-        const token = tokens[idx];
-        const next = tokens[idx + 1];
-        const text = next ? next.content : "";
-        const id = text
-          .toLowerCase()
-          .replace(/[^\w\u4e00-\u9fff]+/g, "-")
-          .replace(/(^-|-$)/g, "")
-          .replace(/^(\d)/, "h-$1")
-          || "h" + idx;
-        token.attrs = token.attrs || [];
-        // Replace any existing id attribute
-        const existing = token.attrs.findIndex((a) => a[0] === "id");
-        if (existing >= 0) token.attrs[existing][1] = id;
-        else token.attrs.push(["id", id]);
-        return self.renderToken(tokens, idx, options, env, self);
-      };
-
-      const result = md.render(mdText);
+      let result = md.render(mdText);
+      // Post-process: inject id attributes into headings so getHeadings() works
+      result = result.replace(
+        /<h([1-6])(\s[^>]*)?>(.*?)<\/h\1>/gi,
+        (match, level, attrs, content) => {
+          // Strip existing id from attrs if present, then add our generated one
+          const stripped = attrs ? attrs.replace(/\s+id\s*=\s*"[^"]*"/i, "") : "";
+          const id = content
+            .replace(/<[^>]+>/g, "") // strip inner HTML tags
+            .toLowerCase()
+            .replace(/[^\w\u4e00-\u9fff]+/g, "-")
+            .replace(/(^-|-$)/g, "")
+            .replace(/^(\d)/, "h-$1")
+            || "h";
+          return `<h${level} id="${id}"${stripped}>${content}</h${level}>`;
+        }
+      );
       document.getElementById("content").innerHTML = result;
 
       // Apply highlight.js

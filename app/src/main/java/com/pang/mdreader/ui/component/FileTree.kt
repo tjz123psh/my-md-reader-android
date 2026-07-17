@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +43,8 @@ fun FileTree(
     modifier: Modifier = Modifier,
 ) {
     // Build tree structure: only show root-level + expanded sub-items
-    val visibleNodes = buildVisibleList(files, expandedDirs)
+    val sortedFiles = remember(files) { files.sortedBy { it.relativePath } }
+    val visibleNodes = buildVisibleList(sortedFiles, expandedDirs)
 
     LazyColumn(modifier = modifier) {
         items(visibleNodes, key = { it.second.relativePath }) { (depth, node) ->
