@@ -3,6 +3,7 @@ package com.pang.mdreader.data
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.pang.mdreader.model.FileNode
 import kotlinx.coroutines.Dispatchers
@@ -91,14 +92,21 @@ class FileRepository(private val context: Context) {
      * Handles both standard markdown ![...](...) and Obsidian ![[...]] syntax.
      */
     suspend fun embedImages(markdown: String, fileUri: Uri): String = withContext(Dispatchers.IO) {
-        val authority = fileUri.authority ?: return@withContext markdown
-        val fileDocId = DocumentsContract.getDocumentId(fileUri)
-        val parentPath = fileDocId.substringBeforeLast("/", "")
+        if (markdown.isEmpty()) return@withContext markdown
+
+        // Decode the document ID from the file URI to resolve relative image paths.
+        // fileUri e.g. content://.../document/primary%3ADocuments%2Fnotes%2Ffile.md
+        val encodedPath = fileUri.encodedPath  // e.g. /document/primary%3ADocuments%2Fnotes%2Ffile.md
+        val prefix = encodedPath?.substringBeforeLast("/")  // e.g. /document/primary%3ADocuments%2Fnotes
+        if (prefix == null || fileUri.authority == null) return@withContext markdown
+
+        // Decode the parent directory document ID for path resolution
+        val docId = Uri.decode(fileUri.lastPathSegment ?: return@withContext markdown)
+        val parentDocId = docId.substringBeforeLast("/", "")
 
         val regex = Regex("""!\[([^\]]*)\]\(([^)]+)\)|!\[\[([^\]\n]+)\]\]""")
 
         regex.replace(markdown) { match ->
-            // Extract image path — group 2 is standard, group 3 is Obsidian
             val rawPath = match.groupValues[2].ifEmpty {
                 match.groupValues[3].split("|")[0].trim()
             }
@@ -106,13 +114,17 @@ class FileRepository(private val context: Context) {
             if (rawPath.startsWith("http://") || rawPath.startsWith("https://") || rawPath.startsWith("data:")) {
                 return@replace match.value
             }
+
+            // Resolve path before try so it's accessible in both success and catch blocks
+            val resolvedDocId = try { resolveImagePath(parentDocId, rawPath) } catch (_: Exception) { rawPath }
+            val imgEncoded = Uri.encode(resolvedDocId)
+            val imageUri = fileUri.buildUpon().encodedPath("$prefix/$imgEncoded").build()
+
             try {
-                // Resolve relative to the markdown file's directory
-                val resolved = resolveImagePath(parentPath, rawPath)
-                val imageUri = DocumentsContract.buildDocumentUri(authority, resolved)
                 val inputStream = context.contentResolver.openInputStream(imageUri)
                 if (inputStream != null) {
                     val bytes = inputStream.use { it.readBytes() }
+                    if (bytes.isEmpty()) return@replace match.value
                     val mime = getImageMimeType(rawPath, imageUri)
                     val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
                     val alt = match.groupValues[1].ifEmpty {
@@ -120,10 +132,17 @@ class FileRepository(private val context: Context) {
                     }
                     "![$alt](data:$mime;base64,$base64)"
                 } else {
-                    match.value // file not found, keep original
+                    android.util.Log.d("MDReader-IMG", "openInputStream returned null: $imageUri")
+                    match.value
                 }
-            } catch (_: Exception) {
-                // If reading fails, keep the original reference
+            } catch (e: java.io.FileNotFoundException) {
+                android.util.Log.d("MDReader-IMG", "File not found: $imageUri")
+                match.value
+            } catch (e: SecurityException) {
+                android.util.Log.d("MDReader-IMG", "Permission denied: $imageUri | ${e.message}")
+                match.value
+            } catch (e: Exception) {
+                android.util.Log.d("MDReader-IMG", "embedImages error: ${e.message} | path=$rawPath | uri=$imageUri")
                 match.value
             }
         }
