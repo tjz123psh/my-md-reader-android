@@ -152,7 +152,7 @@ fun MarkdownView(
                         )
                         // Trigger heading extraction after page loads
                         view?.evaluateJavascript(
-                            """JSON.stringify(mdReader.getHeadings());""",
+                            """mdReader.getHeadings();""",
                             android.webkit.ValueCallback { result ->
                                 android.util.Log.d("MDReader-JS", "onPageFinished headings: ${result?.take(200)}")
                                 // Try parsing on first load
@@ -277,10 +277,11 @@ fun MarkdownView(
 
         fun pollHeadings() {
             attempts++
-            // NOTE: evaluateJavascript returns "null" for JS objects/arrays.
-            // Always use JSON.stringify() so JS returns a string that Android can handle.
+            // NOTE: evaluateJavascript already JSON-encodes native arrays/objects.
+            // Do NOT use JSON.stringify() — that would double-encode (string in a string)
+            // and break JSONArray parsing. Just return the native array.
             webView?.evaluateJavascript(
-                "JSON.stringify(mdReader.getHeadings());",
+                "mdReader.getHeadings();",
             ) { result ->
                 if (!pollingActive) return@evaluateJavascript
                 android.util.Log.d("MDReader-JS", "pollHeadings attempt=$attempts result.length=${result?.length} result=${result?.take(200)}")
