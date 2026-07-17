@@ -169,9 +169,18 @@ class FileRepository(private val context: Context) {
     private fun searchImageInTree(treeUri: Uri, authority: String, parentDocId: String, imageName: String): Uri? {
         val searchDirs = mutableSetOf(parentDocId)
 
-        // Also search Obsidian attachment subdirectories
+        // Attachment subdirs of parent directory
         for (dir in listOf("附件", "附", "attachments", "assets", "images", "img", "_resources", "media")) {
             searchDirs.add("$parentDocId/$dir")
+        }
+
+        // Grandparent and its attachment subdirs (Obsidian vault root level)
+        val grandparent = parentDocId.substringBeforeLast("/", "")
+        if (grandparent.isNotEmpty() && grandparent != parentDocId) {
+            searchDirs.add(grandparent)
+            for (dir in listOf("附件", "附", "attachments", "assets", "images", "img", "_resources", "media")) {
+                searchDirs.add("$grandparent/$dir")
+            }
         }
 
         for (dirDocId in searchDirs) {
@@ -202,6 +211,8 @@ class FileRepository(private val context: Context) {
 
     /**
      * Generate candidate document IDs for a relative image path.
+     * Tries multiple levels to handle Obsidian's vault attachment layout:
+     *   md = vault/subdir/note.md, img = vault/附件/image.png
      */
     private fun resolveImageCandidates(parentPath: String, imagePath: String): List<String> {
         val candidates = mutableListOf<String>()
@@ -216,13 +227,25 @@ class FileRepository(private val context: Context) {
             return candidates
         }
 
-        // Same directory
+        // 1. Same directory
         candidates.add(resolveSingle(parentPath, imagePath))
 
-        // Try common attachment subdirectories
-        for (dir in listOf("附件", "attachments", "assets", "images", "_resources")) {
+        // 2. Attachment subdirs of same directory
+        for (dir in listOf("附件", "附", "attachments", "assets", "images", "_resources", "media")) {
             candidates.add("$parentPath/$dir/$imagePath")
         }
+
+        // 3. Grandparent directory (Obsidian vault root is often one level up)
+        val grandparent = parentPath.substringBeforeLast("/", "")
+        if (grandparent.isNotEmpty()) {
+            // 3a. Grandparent directory itself
+            candidates.add("$grandparent/$imagePath")
+            // 3b. Attachment subdirs of grandparent
+            for (dir in listOf("附件", "附", "attachments", "assets", "images", "_resources", "media")) {
+                candidates.add("$grandparent/$dir/$imagePath")
+            }
+        }
+
         return candidates
     }
 
