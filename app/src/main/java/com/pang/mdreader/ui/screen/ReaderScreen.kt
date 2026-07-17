@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,16 +22,14 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
@@ -46,8 +45,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,18 +54,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.pang.mdreader.model.OutlineItem
 import com.pang.mdreader.model.ReaderTheme
 import com.pang.mdreader.ui.component.MarkdownView
 import com.pang.mdreader.ui.component.OutlinePanel
 import com.pang.mdreader.viewmodel.ReaderViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,12 +87,59 @@ fun ReaderScreen(
     var scrollToLine by remember { mutableStateOf<Int?>(null) }
     var showSearchBar by remember { mutableStateOf(false) }
 
-    // React to search navigation
-    LaunchedEffect(scrollToLine) {
-        // Consumed by MarkdownView
+    // Controls auto-hide for fullscreen
+    var controlsVisible by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    var hideJob by remember { mutableStateOf<Job?>(null) }
+
+    fun scheduleAutoHide() {
+        hideJob?.cancel()
+        if (state.isFullscreen) {
+            hideJob = scope.launch {
+                delay(3000)
+                controlsVisible = false
+            }
+        }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    fun showControls() {
+        controlsVisible = true
+        scheduleAutoHide()
+    }
+
+    // Start/stop auto-hide when fullscreen state changes
+    LaunchedEffect(state.isFullscreen) {
+        if (state.isFullscreen) {
+            controlsVisible = false
+        } else {
+            hideJob?.cancel()
+            controlsVisible = true
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // Tap detection for fullscreen mode — watch without consuming
+            .pointerInput(state.isFullscreen) {
+                if (!state.isFullscreen) return@pointerInput
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull() ?: continue
+                        if (change.pressed && !change.previousPressed) {
+                            val up = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            val upChange = up.changes.firstOrNull()
+                            if (upChange != null && !upChange.pressed) {
+                                scope.launch {
+                                    showControls()
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+    ) {
         // Reader content fills the whole screen
         when {
             state.isLoading -> {
@@ -125,7 +173,6 @@ fun ReaderScreen(
             }
 
             state.content.isNotEmpty() -> {
-                // Markdown reader WebView
                 MarkdownView(
                     markdownContent = state.content,
                     theme = state.theme,
@@ -139,16 +186,15 @@ fun ReaderScreen(
                     onScrollToLine = scrollToLine,
                     modifier = Modifier.fillMaxSize(),
                 )
-
-                // Clear scroll triggers after consumption
                 scrollToHeading = null
                 scrollToLine = null
             }
         }
 
-        // Top bar (animated)
+        // Top bar — simplified: only back + title
+        val topBarVisible = if (state.isFullscreen) controlsVisible else true
         AnimatedVisibility(
-            visible = !state.isFullscreen && state.content.isNotEmpty() && !state.isLoading,
+            visible = topBarVisible && state.content.isNotEmpty() && !state.isLoading,
             enter = slideInVertically(spring()) { -it },
             exit = slideOutVertically(spring()) { -it },
         ) {
@@ -168,34 +214,6 @@ fun ReaderScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = {
-                        viewModel.setTheme(
-                            when (state.theme) {
-                                ReaderTheme.WARM_LIGHT -> ReaderTheme.WARM_DARK
-                                ReaderTheme.WARM_DARK -> ReaderTheme.GITHUB
-                                ReaderTheme.GITHUB -> ReaderTheme.WARM_LIGHT
-                                ReaderTheme.SYSTEM -> ReaderTheme.WARM_LIGHT
-                            }
-                        )
-                    }) {
-                        Icon(Icons.Default.BrightnessMedium, contentDescription = "切换主题")
-                    }
-                    IconButton(onClick = { viewModel.setZoom(state.zoom - 5) }) {
-                        Icon(Icons.Default.TextDecrease, contentDescription = "缩小")
-                    }
-                    Text(
-                        text = "${state.zoom}%",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    IconButton(onClick = { viewModel.setZoom(state.zoom + 5) }) {
-                        Icon(Icons.Default.TextIncrease, contentDescription = "放大")
-                    }
-                    IconButton(onClick = { viewModel.toggleFullscreen() }) {
-                        Icon(Icons.Default.FullscreenExit, contentDescription = "全屏")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -203,9 +221,10 @@ fun ReaderScreen(
             )
         }
 
-        // Bottom toolbar
+        // Bottom toolbar — all controls here
+        val bottomBarVisible = if (state.isFullscreen) controlsVisible else true
         AnimatedVisibility(
-            visible = !state.isFullscreen && state.content.isNotEmpty() && !state.isLoading,
+            visible = bottomBarVisible && state.content.isNotEmpty() && !state.isLoading,
             enter = slideInVertically(spring()) { it },
             exit = slideOutVertically(spring()) { it },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -228,17 +247,17 @@ fun ReaderScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Search
-                    IconButton(onClick = {
-                        showSearchBar = !showSearchBar
-                        if (!showSearchBar) {
-                            viewModel.performSearch("")
-                        }
-                    }) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索")
-                    }
+                    SearchIconButton(
+                        showSearchBar = showSearchBar,
+                        onClick = {
+                            showSearchBar = !showSearchBar
+                            if (!showSearchBar) viewModel.performSearch("")
+                            showControls()
+                        },
+                    )
 
                     // Zoom out
-                    IconButton(onClick = { viewModel.setZoom(state.zoom - 5) }) {
+                    IconButton(onClick = { viewModel.setZoom(state.zoom - 5); showControls() }) {
                         Icon(Icons.Default.TextDecrease, contentDescription = "缩小")
                     }
 
@@ -249,7 +268,7 @@ fun ReaderScreen(
                     )
 
                     // Zoom in
-                    IconButton(onClick = { viewModel.setZoom(state.zoom + 5) }) {
+                    IconButton(onClick = { viewModel.setZoom(state.zoom + 5); showControls() }) {
                         Icon(Icons.Default.TextIncrease, contentDescription = "放大")
                     }
 
@@ -263,27 +282,31 @@ fun ReaderScreen(
                                 ReaderTheme.SYSTEM -> ReaderTheme.WARM_LIGHT
                             }
                         )
+                        showControls()
                     }) {
                         Icon(Icons.Default.BrightnessMedium, contentDescription = "切换主题")
                     }
 
                     // Outline
-                    IconButton(onClick = { showOutline = !showOutline }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            contentDescription = "目录",
-                        )
+                    IconButton(onClick = { showOutline = !showOutline; showControls() }) {
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "目录")
                     }
 
-                    // Fullscreen
-                    IconButton(onClick = { viewModel.toggleFullscreen() }) {
-                        Icon(Icons.Default.Fullscreen, contentDescription = "全屏")
+                    // Fullscreen toggle
+                    IconButton(onClick = {
+                        viewModel.toggleFullscreen()
+                        controlsVisible = false
+                    }) {
+                        Icon(
+                            if (state.isFullscreen) Icons.Default.Close else Icons.Default.Fullscreen,
+                            contentDescription = if (state.isFullscreen) "退出全屏" else "全屏",
+                        )
                     }
                 }
             }
         }
 
-        // Search panel (below top bar when visible, top of screen in fullscreen)
+        // Search panel
         AnimatedVisibility(
             visible = showSearchBar || state.searchQuery.isNotEmpty(),
             enter = fadeIn(spring()),
@@ -291,7 +314,7 @@ fun ReaderScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .then(
-                    if (!state.isFullscreen)
+                    if (!state.isFullscreen || topBarVisible)
                         Modifier.padding(top = 64.dp)
                     else
                         Modifier
@@ -304,9 +327,11 @@ fun ReaderScreen(
                 onQueryChange = { viewModel.performSearch(it) },
                 onNext = {
                     scrollToLine = viewModel.goToNextSearchResult()
+                    showControls()
                 },
                 onPrev = {
                     scrollToLine = viewModel.goToPrevSearchResult()
+                    showControls()
                 },
                 onClose = {
                     showSearchBar = false
@@ -315,7 +340,7 @@ fun ReaderScreen(
             )
         }
 
-        // Outline overlay panel (right side, below status bar)
+        // Outline overlay panel
         if (showOutline && outline.isNotEmpty()) {
             Box(
                 modifier = Modifier
@@ -363,6 +388,19 @@ fun ReaderScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.SearchIconButton(
+    showSearchBar: Boolean,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        Icon(
+            if (showSearchBar) Icons.Default.Close else Icons.Default.Search,
+            contentDescription = "搜索",
+        )
     }
 }
 
@@ -426,7 +464,8 @@ private fun SearchResultsPanel(
                         .padding(top = 4.dp),
                     state = rememberLazyListState(),
                 ) {
-                    items(results) { result ->
+                    items(results.size) { index ->
+                        val result = results[index]
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
