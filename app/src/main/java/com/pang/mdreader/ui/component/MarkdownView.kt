@@ -146,9 +146,29 @@ fun MarkdownView(
                         )
                         // Trigger heading extraction after page loads
                         view?.evaluateJavascript(
-                            """JSON.stringify(mdReader.getHeadings());""",
+                            """mdReader.getHeadings();""",
                             android.webkit.ValueCallback { result ->
                                 android.util.Log.d("MDReader-JS", "onPageFinished headings: ${result?.take(200)}")
+                                // Try parsing on first load
+                                if (result != null && result != "null" && result.length > 2) {
+                                    try {
+                                        val arr = JSONArray(result)
+                                        val items = mutableListOf<OutlineItem>()
+                                        for (i in 0 until arr.length()) {
+                                            val obj = arr.getJSONObject(i)
+                                            items.add(
+                                                OutlineItem(
+                                                    level = obj.optInt("level", 1),
+                                                    title = obj.optString("title", ""),
+                                                    id = obj.optString("id", ""),
+                                                )
+                                            )
+                                        }
+                                        if (items.isNotEmpty()) {
+                                            onHeadingsReady(items)
+                                        }
+                                    } catch (_: Exception) {}
+                                }
                             }
                         )
                     }
@@ -240,11 +260,13 @@ fun MarkdownView(
 
         fun pollHeadings() {
             attempts++
+            // NOTE: evaluateJavascript already JSON-encodes the return value.
+            // Do NOT use JSON.stringify() — that would double-encode and break JSONArray parsing.
             webView?.evaluateJavascript(
-                "JSON.stringify(mdReader.getHeadings());",
+                "mdReader.getHeadings();",
             ) { result ->
                 if (!pollingActive) return@evaluateJavascript
-                android.util.Log.d("MDReader-JS", "pollHeadings attempt=$attempts result.length=${result?.length} result=$result")
+                android.util.Log.d("MDReader-JS", "pollHeadings attempt=$attempts result.length=${result?.length} result=${result?.take(200)}")
                 if (result != null && result != "null" && result.length > 2) {
                     try {
                         val arr = JSONArray(result)
@@ -267,7 +289,7 @@ fun MarkdownView(
                             return@evaluateJavascript
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("MDReader-JS", "Heading JSON parse error: ${e.message}")
+                        android.util.Log.e("MDReader-JS", "Heading JSON parse error: ${e.message} | result=${result?.take(200)}")
                     }
                 }
                 // Retry while still active and under max attempts
