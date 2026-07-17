@@ -10,12 +10,15 @@ import com.pang.mdreader.model.FileNode
 import com.pang.mdreader.model.OutlineItem
 import com.pang.mdreader.model.ReaderState
 import com.pang.mdreader.model.ReaderTheme
+import com.pang.mdreader.model.SearchResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -59,6 +62,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 title = fileNode.name,
                 outline = emptyList(),
                 activeHeadingId = null,
+                searchResults = emptyList(),
+                searchCurrentIndex = -1,
+                searchQuery = "",
+                isFullscreen = false,
             )
 
             settingsRepo.setLastDocument(fileNode.uri.toString())
@@ -106,5 +113,51 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     fun onDocumentLoaded() {
         // WebView is ready
+    }
+
+    fun toggleFullscreen() {
+        _state.value = _state.value.copy(isFullscreen = !_state.value.isFullscreen)
+    }
+
+    fun performSearch(query: String) {
+        if (query.isBlank()) {
+            _state.value = _state.value.copy(
+                searchResults = emptyList(),
+                searchCurrentIndex = -1,
+                searchQuery = "",
+            )
+            return
+        }
+        _state.value = _state.value.copy(searchQuery = query)
+        viewModelScope.launch {
+            val results = withContext(Dispatchers.Default) {
+                val lines = _state.value.content.lines()
+                lines.mapIndexedNotNull { index, line ->
+                    if (line.contains(query, ignoreCase = true)) {
+                        SearchResult(line = index + 1, text = line.trim())
+                    } else null
+                }
+            }
+            _state.value = _state.value.copy(
+                searchResults = results,
+                searchCurrentIndex = if (results.isNotEmpty()) 0 else -1,
+            )
+        }
+    }
+
+    fun goToNextSearchResult(): Int? {
+        val s = _state.value
+        if (s.searchResults.isEmpty()) return null
+        val nextIndex = (s.searchCurrentIndex + 1).coerceAtMost(s.searchResults.size - 1)
+        _state.value = s.copy(searchCurrentIndex = nextIndex)
+        return s.searchResults[nextIndex].line
+    }
+
+    fun goToPrevSearchResult(): Int? {
+        val s = _state.value
+        if (s.searchResults.isEmpty()) return null
+        val prevIndex = (s.searchCurrentIndex - 1).coerceAtLeast(0)
+        _state.value = s.copy(searchCurrentIndex = prevIndex)
+        return s.searchResults[prevIndex].line
     }
 }

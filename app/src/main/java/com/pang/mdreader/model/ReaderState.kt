@@ -12,6 +12,15 @@ data class ReaderState(
     val activeHeadingId: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val isFullscreen: Boolean = false,
+    val searchResults: List<SearchResult> = emptyList(),
+    val searchCurrentIndex: Int = -1,
+    val searchQuery: String = "",
+)
+
+data class SearchResult(
+    val line: Int,
+    val text: String,
 )
 
 enum class ReaderTheme(val id: String, val label: String) {

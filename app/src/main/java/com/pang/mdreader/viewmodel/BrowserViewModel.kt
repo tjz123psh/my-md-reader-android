@@ -6,8 +6,10 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pang.mdreader.data.FileRepository
+import com.pang.mdreader.data.RecentFilesRepo
 import com.pang.mdreader.data.SettingsRepo
 import com.pang.mdreader.model.FileNode
+import com.pang.mdreader.model.RecentFile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,17 +30,22 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     private val fileRepo = FileRepository(application)
     private val settingsRepo = SettingsRepo(application)
+    private val recentFilesRepo = RecentFilesRepo(application)
 
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
 
-    val lastWorkspaceUri: StateFlow<String?> = settingsRepo.lastWorkspaceFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val recentFiles: StateFlow<List<RecentFile>> = recentFilesRepo.recentFilesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _lastWorkspaceUri = MutableStateFlow<String?>(null)
+    val lastWorkspaceUri: StateFlow<String?> = _lastWorkspaceUri.asStateFlow()
 
     init {
         // Restore last workspace
         viewModelScope.launch {
             val uriStr = settingsRepo.lastWorkspaceFlow.stateIn(viewModelScope).value
+            _lastWorkspaceUri.value = uriStr
             if (uriStr != null && uriStr.isNotEmpty()) {
                 val uri = Uri.parse(uriStr)
                 openWorkspace(uri)
@@ -90,6 +97,24 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         _uiState.value = BrowserUiState()
         viewModelScope.launch {
             settingsRepo.setLastWorkspace(null)
+        }
+    }
+
+    fun addRecentFile(fileNode: FileNode) {
+        viewModelScope.launch {
+            recentFilesRepo.addRecent(
+                RecentFile(
+                    uri = fileNode.uri.toString(),
+                    name = fileNode.name,
+                    workspaceUri = (_uiState.value.workspaceUri?.toString() ?: ""),
+                )
+            )
+        }
+    }
+
+    fun clearRecentFiles() {
+        viewModelScope.launch {
+            recentFilesRepo.clearAll()
         }
     }
 }

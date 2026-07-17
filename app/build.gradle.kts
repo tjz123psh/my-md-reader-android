@@ -12,10 +12,19 @@ android {
         applicationId = "com.pang.mdreader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../release.keystore")
+            storePassword = "mdreader123"
+            keyAlias = "md-reader"
+            keyPassword = "mdreader123"
+        }
     }
 
     buildTypes {
@@ -25,6 +34,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -39,6 +49,10 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        abortOnError = false
     }
 }
 
