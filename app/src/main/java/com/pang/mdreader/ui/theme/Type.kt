@@ -19,12 +19,12 @@ val AppTypography = Typography(
         lineHeight = 32.sp,
     ),
     headlineMedium = TextStyle(
-        fontWeight = FontWeight.W650,
+        fontWeight = FontWeight.W600,
         fontSize = 20.sp,
         lineHeight = 28.sp,
     ),
     headlineSmall = TextStyle(
-        fontWeight = FontWeight.W650,
+        fontWeight = FontWeight.W600,
         fontSize = 18.sp,
         lineHeight = 24.sp,
     ),

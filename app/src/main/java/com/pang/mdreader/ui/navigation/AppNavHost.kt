@@ -34,8 +34,8 @@ object Routes {
 @Composable
 fun AppNavHost(
     navController: NavHostController,
+    readerViewModel: ReaderViewModel,
     browserViewModel: BrowserViewModel = viewModel(),
-    readerViewModel: ReaderViewModel = viewModel(),
     modifier: Modifier = Modifier,
 ) {
     NavHost(

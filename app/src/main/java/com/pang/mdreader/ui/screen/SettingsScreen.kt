@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -20,16 +25,25 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.pang.mdreader.data.UpdateChecker
+import com.pang.mdreader.data.UpdateInfo
 import com.pang.mdreader.model.ReaderTheme
 import com.pang.mdreader.viewmodel.ReaderViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +53,11 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val currentTheme by readerViewModel.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var checkingUpdate by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -106,6 +125,92 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Check for updates
+            Text(
+                text = "检查更新",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !checkingUpdate) {
+                        if (!checkingUpdate) {
+                            checkingUpdate = true
+                            scope.launch {
+                                updateInfo = UpdateChecker.check()
+                                checkingUpdate = false
+                            }
+                        }
+                    }
+                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (checkingUpdate) "正在检查..." else "检查新版本",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = "当前版本 1.0.0",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (checkingUpdate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
+        }
+    }
+
+    // Update dialog
+    if (updateInfo != null) {
+        if (updateInfo!!.hasUpdate) {
+            AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                title = { Text("有新版本 ${updateInfo!!.latestVersion}") },
+                text = {
+                    Text(updateInfo!!.releaseNotes.ifEmpty { "发现新版本，是否下载更新？" })
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val intent = android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(updateInfo!!.downloadUrl)
+                        )
+                        context.startActivity(intent)
+                        updateInfo = null
+                    }) {
+                        Text("下载")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text("取消")
+                    }
+                },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                title = { Text("已是最新版本") },
+                text = { Text("当前版本 1.0.0 已是最新。") },
+                confirmButton = {
+                    Button(onClick = { updateInfo = null }) {
+                        Text("确定")
+                    }
+                },
             )
         }
     }

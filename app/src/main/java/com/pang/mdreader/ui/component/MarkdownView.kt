@@ -47,12 +47,12 @@ class JsBridge(
         try {
             val obj = JSONObject(json)
             val heading = obj.optJSONObject("heading")
-            onSelectionChanged(
-                text = obj.optString("text", ""),
-                startLine = obj.optInt("startLine", 0),
-                endLine = obj.optInt("endLine", 0),
-                headingId = heading?.optString("id", "") ?: "",
-                headingTitle = heading?.optString("title", "") ?: "",
+            onSelectionChanged.invoke(
+                obj.optString("text", ""),
+                obj.optInt("startLine", 0),
+                obj.optInt("endLine", 0),
+                heading?.optString("id", "") ?: "",
+                heading?.optString("title", "") ?: "",
             )
         } catch (_: Exception) {}
     }
@@ -212,39 +212,42 @@ fun MarkdownView(
 
     // Extract headings after load
     DisposableEffect(Unit) {
-        // Poll for headings after document loads
-        val poll = object : Runnable {
-            override fun run() {
-                webView?.evaluateJavascript(
-                    "JSON.stringify(mdReader.getHeadings());",
-                ) { result ->
-                    if (result != null && result != "null" && result.length > 2) {
-                        try {
-                            val arr = JSONArray(result)
-                            val items = mutableListOf<OutlineItem>()
-                            for (i in 0 until arr.length()) {
-                                val obj = arr.getJSONObject(i)
-                                items.add(
-                                    OutlineItem(
-                                        level = obj.optInt("level", 1),
-                                        title = obj.optString("title", ""),
-                                        id = obj.optString("id", ""),
-                                    )
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var pollingActive = true
+
+        fun pollHeadings() {
+            webView?.evaluateJavascript(
+                "JSON.stringify(mdReader.getHeadings());",
+            ) { result ->
+                if (!pollingActive) return@evaluateJavascript
+                if (result != null && result != "null" && result.length > 2) {
+                    try {
+                        val arr = JSONArray(result)
+                        val items = mutableListOf<OutlineItem>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            items.add(
+                                OutlineItem(
+                                    level = obj.optInt("level", 1),
+                                    title = obj.optString("title", ""),
+                                    id = obj.optString("id", ""),
                                 )
-                            }
-                            if (items.isNotEmpty()) {
-                                onHeadingsReady(items)
-                                return
-                            }
-                        } catch (_: Exception) {}
-                    }
-                    // Retry after delay
-                    webView?.postDelayed(this, 200)
+                            )
+                        }
+                        if (items.isNotEmpty()) {
+                            onHeadingsReady(items)
+                            return@evaluateJavascript
+                        }
+                    } catch (_: Exception) {}
+                }
+                // Retry while still active
+                if (pollingActive) {
+                    handler.postDelayed({ pollHeadings() }, 200)
                 }
             }
         }
-        webView?.postDelayed(poll, 300)
-        onDispose { webView?.removeCallbacks(poll) }
+        handler.postDelayed({ pollHeadings() }, 300)
+        onDispose { pollingActive = false; handler.removeCallbacksAndMessages(null) }
     }
 }
 
@@ -278,7 +281,7 @@ private fun buildReaderHtml(context: Context, markdownContent: String, themeId: 
   <script>$highlightJs</script>
   <script>
     try {
-      var MD_READER_CONTENT = atob("$encodedContent");
+      var MD_READER_CONTENT = decodeURIComponent(escape(atob("$encodedContent")));
     } catch(e) {
       var MD_READER_CONTENT = "";
     }

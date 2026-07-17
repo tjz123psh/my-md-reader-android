@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FolderOpen
-import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -116,7 +116,7 @@ private fun EmptyWorkspaceState(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            imageVector = Icons.Default.LibraryBooks,
+            imageVector = Icons.AutoMirrored.Filled.LibraryBooks,
             contentDescription = null,
             modifier = Modifier.size(64.dp),
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
@@ -145,7 +145,7 @@ private fun EmptyWorkspaceState(
             ),
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.FolderOpen,
+                imageVector = Icons.Default.FolderOpen,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

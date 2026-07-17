@@ -10,25 +10,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.pang.mdreader.model.ReaderTheme
 import com.pang.mdreader.ui.navigation.AppNavHost
 import com.pang.mdreader.ui.navigation.Routes
 import com.pang.mdreader.ui.theme.MdReaderTheme
+import com.pang.mdreader.viewmodel.ReaderViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,11 +47,11 @@ fun MdReaderApp() {
     // Determine if we should show bottom nav
     val showBottomNav = currentRoute == Routes.BROWSER || currentRoute == Routes.SETTINGS
 
-    // Simple theme selection (default warm light, user can change in settings)
-    var currentTheme by rememberSaveable { mutableIntStateOf(0) }
-    val theme = ReaderTheme.entries.getOrElse(currentTheme) { ReaderTheme.WARM_LIGHT }
+    // Shared ReaderViewModel so theme changes from Settings apply globally
+    val readerViewModel: ReaderViewModel = viewModel()
+    val readerState by readerViewModel.state.collectAsState()
 
-    MdReaderTheme(readerTheme = theme) {
+    MdReaderTheme(readerTheme = readerState.theme) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
@@ -90,7 +87,10 @@ fun MdReaderApp() {
         ) { padding ->
             AppNavHost(
                 navController = navController,
-                modifier = Modifier.padding(padding),
+                readerViewModel = readerViewModel,
+                // Only pass bottom padding (bottom nav + system nav bar).
+                // Top padding is handled by each screen's own Scaffold.
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }

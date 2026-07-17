@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Outline
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.TextIncrease
@@ -141,8 +141,8 @@ fun ReaderScreen(
                     // Toggle outline
                     IconButton(onClick = { showOutline = !showOutline }) {
                         Icon(
-                            imageVector = Icons.Default.Outline,
-                            contentDescription = "目录",
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = "目录",
                         )
                     }
                 },
