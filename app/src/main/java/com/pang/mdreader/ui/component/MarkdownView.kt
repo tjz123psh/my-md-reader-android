@@ -197,6 +197,29 @@ fun MarkdownView(
                         }
                         return false
                     }
+
+                    override fun shouldInterceptRequest(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                    ): android.webkit.WebResourceResponse? {
+                        val url = request?.url ?: return null
+                        // Intercept content:// URIs (images resolved by resolveImageUris)
+                        // Android 10+ WebView doesn't auto-load content:// URIs, so we
+                        // bridge them via the app's content resolver (which has SAF tree permission).
+                        if (url.scheme == "content") {
+                            try {
+                                val inputStream = ctx.contentResolver.openInputStream(url)
+                                if (inputStream != null) {
+                                    val mimeType = ctx.contentResolver.getType(url) ?: "image/*"
+                                    android.util.Log.d("MDReader-IMG", "serve: $url ($mimeType)")
+                                    return android.webkit.WebResourceResponse(mimeType, null, inputStream)
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("MDReader-IMG", "shouldInterceptRequest: ${e.message} | url=$url")
+                            }
+                        }
+                        return null
+                    }
                 }
 
                 webChromeClient = object : WebChromeClient() {

@@ -75,8 +75,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
             val result = fileRepo.readFile(fileNode.uri)
             result.onSuccess { content ->
-                // Embed images as base64 data URIs so they render in WebView
-                val processed = fileRepo.embedImages(content, fileNode.uri)
+                // Resolve image references to content:// URIs (loaded via shouldInterceptRequest)
+                val processed = fileRepo.resolveImageUris(content, fileNode.uri)
                 _state.value = _state.value.copy(
                     content = processed,
                     isLoading = false,

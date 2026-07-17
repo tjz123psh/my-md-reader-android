@@ -88,19 +88,20 @@ class FileRepository(private val context: Context) {
     }
 
     /**
-     * Scan markdown text for image references and replace them with base64 data URIs.
+     * Scan markdown text for image references and replace them with [content://] URIs
+     * (readable by the app via SAF tree permission). The actual bytes are streamed
+     * via WebViewClient.shouldInterceptRequest — no base64 encoding needed.
+     *
      * Handles both standard markdown ![...](...) and Obsidian ![[...]] syntax.
      */
-    suspend fun embedImages(markdown: String, fileUri: Uri): String = withContext(Dispatchers.IO) {
+    suspend fun resolveImageUris(markdown: String, fileUri: Uri): String = withContext(Dispatchers.IO) {
         if (markdown.isEmpty()) return@withContext markdown
 
-        // Decode the document ID from the file URI to resolve relative image paths.
         // fileUri e.g. content://.../document/primary%3ADocuments%2Fnotes%2Ffile.md
-        val encodedPath = fileUri.encodedPath  // e.g. /document/primary%3ADocuments%2Fnotes%2Ffile.md
-        val prefix = encodedPath?.substringBeforeLast("/")  // e.g. /document/primary%3ADocuments%2Fnotes
+        val encodedPath = fileUri.encodedPath  // /document/primary%3ADocuments%2Fnotes%2Ffile.md
+        val prefix = encodedPath?.substringBeforeLast("/")  // /document/primary%3ADocuments%2Fnotes
         if (prefix == null || fileUri.authority == null) return@withContext markdown
 
-        // Decode the parent directory document ID for path resolution
         val docId = Uri.decode(fileUri.lastPathSegment ?: return@withContext markdown)
         val parentDocId = docId.substringBeforeLast("/", "")
 
@@ -115,36 +116,15 @@ class FileRepository(private val context: Context) {
                 return@replace match.value
             }
 
-            // Resolve path before try so it's accessible in both success and catch blocks
             val resolvedDocId = try { resolveImagePath(parentDocId, rawPath) } catch (_: Exception) { rawPath }
             val imgEncoded = Uri.encode(resolvedDocId)
             val imageUri = fileUri.buildUpon().encodedPath("$prefix/$imgEncoded").build()
 
-            try {
-                val inputStream = context.contentResolver.openInputStream(imageUri)
-                if (inputStream != null) {
-                    val bytes = inputStream.use { it.readBytes() }
-                    if (bytes.isEmpty()) return@replace match.value
-                    val mime = getImageMimeType(rawPath, imageUri)
-                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    val alt = match.groupValues[1].ifEmpty {
-                        rawPath.substringAfterLast("/").substringBeforeLast(".")
-                    }
-                    "![$alt](data:$mime;base64,$base64)"
-                } else {
-                    android.util.Log.d("MDReader-IMG", "openInputStream returned null: $imageUri")
-                    match.value
-                }
-            } catch (e: java.io.FileNotFoundException) {
-                android.util.Log.d("MDReader-IMG", "File not found: $imageUri")
-                match.value
-            } catch (e: SecurityException) {
-                android.util.Log.d("MDReader-IMG", "Permission denied: $imageUri | ${e.message}")
-                match.value
-            } catch (e: Exception) {
-                android.util.Log.d("MDReader-IMG", "embedImages error: ${e.message} | path=$rawPath | uri=$imageUri")
-                match.value
+            val alt = match.groupValues[1].ifEmpty {
+                rawPath.substringAfterLast("/").substringBeforeLast(".")
             }
+            android.util.Log.d("MDReader-IMG", "resolveImageUris: $rawPath → $imageUri")
+            "![$alt]($imageUri)"
         }
     }
 
