@@ -18,7 +18,8 @@ data class UpdateInfo(
 
 object UpdateChecker {
     private const val REPO_API = "https://api.github.com/repos/tjz123psh/my-md-reader-android/releases/latest"
-    private const val CURRENT_VERSION = "1.0.0"
+    // Keep in sync with app/build.gradle.kts versionName
+    private const val CURRENT_VERSION = "1.1.0"
 
     suspend fun check(): UpdateInfo = withContext(Dispatchers.IO) {
         try {
@@ -34,9 +35,23 @@ object UpdateChecker {
             val json = JSONObject(conn.inputStream.bufferedReader().readText())
             val tagName = json.optString("tag_name", "").removePrefix("v")
             val releaseNotes = json.optString("body", "").take(500)
-            val downloadUrl = json.optJSONArray("assets")
-                ?.optJSONObject(0)
-                ?.optString("browser_download_url", "") ?: ""
+            val assets = json.optJSONArray("assets")
+            var downloadUrl = ""
+            if (assets != null) {
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i)
+                    val name = asset?.optString("name", "") ?: ""
+                    // Prefer the debug APK (smaller, works on all devices)
+                    if (name.endsWith("-debug.apk")) {
+                        downloadUrl = asset.optString("browser_download_url", "")
+                        break
+                    }
+                }
+                if (downloadUrl.isEmpty()) {
+                    downloadUrl = assets.optJSONObject(0)
+                        ?.optString("browser_download_url", "") ?: ""
+                }
+            }
 
             val hasUpdate = compareVersions(tagName, CURRENT_VERSION) > 0
 

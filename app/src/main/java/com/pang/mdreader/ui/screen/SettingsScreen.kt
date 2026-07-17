@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -41,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.pang.mdreader.data.ApkDownloader
 import com.pang.mdreader.data.UpdateChecker
 import com.pang.mdreader.data.UpdateInfo
 import com.pang.mdreader.model.ReaderTheme
@@ -188,7 +188,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         Text(
-                            text = "当前版本 1.0.0",
+                            text = "当前版本 1.1.0",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -215,15 +215,21 @@ fun SettingsScreen(
                     Text(updateInfo!!.releaseNotes.ifEmpty { "发现新版本，是否下载更新？" })
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        val intent = android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse(updateInfo!!.downloadUrl)
-                        )
-                        context.startActivity(intent)
-                        updateInfo = null
-                    }) {
-                        Text("下载")
+                    var downloading by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = {
+                            if (!downloading) {
+                                downloading = true
+                                scope.launch {
+                                    ApkDownloader.downloadAndInstall(context, updateInfo!!.downloadUrl)
+                                    updateInfo = null
+                                    downloading = false
+                                }
+                            }
+                        },
+                        enabled = !downloading,
+                    ) {
+                        Text(if (downloading) "下载中..." else "下载")
                     }
                 },
                 dismissButton = {
@@ -236,7 +242,7 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { updateInfo = null },
                 title = { Text("已是最新版本") },
-                text = { Text("当前版本 1.0.0 已是最新。") },
+                text = { Text("当前版本 1.1.0 已是最新。") },
                 confirmButton = {
                     Button(onClick = { updateInfo = null }) {
                         Text("确定")
