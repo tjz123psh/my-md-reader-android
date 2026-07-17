@@ -341,7 +341,7 @@ fun ReaderScreen(
         }
 
         // Outline overlay panel
-        if (showOutline && outline.isNotEmpty()) {
+        if (showOutline) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)

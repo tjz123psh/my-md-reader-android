@@ -188,6 +188,15 @@ fun MarkdownView(
         onDispose {}
     }
 
+    // React to theme changes — inject JS to switch CSS data-color-scheme immediately
+    DisposableEffect(theme) {
+        webView?.evaluateJavascript(
+            "document.body.setAttribute('data-color-scheme', '${theme.id}');",
+            null
+        )
+        onDispose {}
+    }
+
     // React to heading scroll requests
     DisposableEffect(onScrollToHeading) {
         if (onScrollToHeading != null) {
