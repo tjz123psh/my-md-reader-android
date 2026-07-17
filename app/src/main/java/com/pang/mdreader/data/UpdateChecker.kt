@@ -82,7 +82,8 @@ object UpdateChecker {
             for (i in 0 until assets.length()) {
                 val asset = assets.optJSONObject(i)
                 val name = asset?.optString("name", "") ?: ""
-                if (name.endsWith("debug.apk")) {
+                // Prefer the release APK (matches the installed app's signature)
+                if (name.endsWith("release.apk")) {
                     downloadUrl = asset.optString("browser_download_url", "")
                     break
                 }
@@ -123,7 +124,7 @@ object UpdateChecker {
         if (tag.isEmpty()) throw Exception("no tag in redirect: $location")
 
         val hasUpdate = compareVersions(tag, CURRENT_VERSION) > 0
-        val downloadUrl = "$DOWNLOAD_BASE/v$tag/app-debug.apk"
+        val downloadUrl = "$DOWNLOAD_BASE/v$tag/app-release.apk"
 
         return UpdateInfo(
             hasUpdate = hasUpdate,

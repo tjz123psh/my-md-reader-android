@@ -382,7 +382,7 @@ fun ReaderScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "目录",
+                                text = "大纲",
                                 style = MaterialTheme.typography.titleSmall,
                             )
                             IconButton(onClick = { showOutline = false }) {

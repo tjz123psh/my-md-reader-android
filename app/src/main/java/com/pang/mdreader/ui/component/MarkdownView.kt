@@ -144,6 +144,13 @@ fun MarkdownView(
                             "mdReader.setZoom($zoom);",
                             null
                         )
+                        // Trigger heading extraction after page loads
+                        view?.evaluateJavascript(
+                            """JSON.stringify(mdReader.getHeadings());""",
+                            android.webkit.ValueCallback { result ->
+                                android.util.Log.d("MDReader-JS", "onPageFinished headings: ${result?.take(200)}")
+                            }
+                        )
                     }
 
                     override fun shouldOverrideUrlLoading(
@@ -164,7 +171,12 @@ fun MarkdownView(
                     }
                 }
 
-                webChromeClient = WebChromeClient()
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(msg: android.webkit.ConsoleMessage?): Boolean {
+                        android.util.Log.d("MDReader-JS", "${msg?.message()} (${msg?.sourceId()}:${msg?.lineNumber()})")
+                        return true
+                    }
+                }
 
                 loadDataWithBaseURL(
                     "file:///android_asset/reader/",
@@ -219,16 +231,20 @@ fun MarkdownView(
         onDispose {}
     }
 
-    // Extract headings after load
+    // Extract headings after load — poll until found or 5s timeout
     DisposableEffect(Unit) {
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         var pollingActive = true
+        var attempts = 0
+        val maxAttempts = 25  // 25 * 200ms = 5s total
 
         fun pollHeadings() {
+            attempts++
             webView?.evaluateJavascript(
                 "JSON.stringify(mdReader.getHeadings());",
             ) { result ->
                 if (!pollingActive) return@evaluateJavascript
+                android.util.Log.d("MDReader-JS", "pollHeadings attempt=$attempts result.length=${result?.length} result=$result")
                 if (result != null && result != "null" && result.length > 2) {
                     try {
                         val arr = JSONArray(result)
@@ -244,18 +260,23 @@ fun MarkdownView(
                             )
                         }
                         if (items.isNotEmpty()) {
+                            android.util.Log.d("MDReader-JS", "Heading extraction succeeded: ${items.size} headings")
                             onHeadingsReady(items)
+                            pollingActive = false
+                            handler.removeCallbacksAndMessages(null)
                             return@evaluateJavascript
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        android.util.Log.e("MDReader-JS", "Heading JSON parse error: ${e.message}")
+                    }
                 }
-                // Retry while still active
-                if (pollingActive) {
+                // Retry while still active and under max attempts
+                if (pollingActive && attempts < maxAttempts) {
                     handler.postDelayed({ pollHeadings() }, 200)
                 }
             }
         }
-        handler.postDelayed({ pollHeadings() }, 300)
+        handler.postDelayed({ pollHeadings() }, 500)
         onDispose { pollingActive = false; handler.removeCallbacksAndMessages(null) }
     }
 }
