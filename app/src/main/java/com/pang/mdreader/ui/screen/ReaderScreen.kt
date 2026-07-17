@@ -25,12 +25,14 @@ import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -107,7 +110,7 @@ fun ReaderScreen(
                         )
                     }
 
-                    // Zoom out
+                    // Zoom controls
                     IconButton(onClick = { viewModel.setZoom(state.zoom - 5) }) {
                         Icon(
                             imageVector = Icons.Default.TextDecrease,
@@ -115,14 +118,12 @@ fun ReaderScreen(
                         )
                     }
 
-                    // Zoom level
                     Text(
                         text = "${state.zoom}%",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    // Zoom in
                     IconButton(onClick = { viewModel.setZoom(state.zoom + 5) }) {
                         Icon(
                             imageVector = Icons.Default.TextIncrease,
@@ -141,8 +142,8 @@ fun ReaderScreen(
                     // Toggle outline
                     IconButton(onClick = { showOutline = !showOutline }) {
                         Icon(
-                        imageVector = Icons.AutoMirrored.Filled.List,
-                        contentDescription = "目录",
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = "目录",
                         )
                     }
                 },
@@ -195,10 +196,12 @@ fun ReaderScreen(
                                 text = state.error ?: "未知错误",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
                             )
+                            Spacer(modifier = Modifier.height(16.dp))
                             Button(
                                 onClick = onBack,
-                                modifier = Modifier.padding(top = 16.dp),
+                                shape = RoundedCornerShape(12.dp),
                             ) {
                                 Text("返回")
                             }
@@ -233,12 +236,15 @@ fun ReaderScreen(
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxWidth(0.7f)
-                            .padding(top = 8.dp, bottom = 8.dp)
-                            .padding(end = 8.dp),
+                            .padding(top = 8.dp, bottom = 8.dp, end = 8.dp),
                     ) {
                         Card(
                             modifier = Modifier.fillMaxSize(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                            ),
                         ) {
                             Column {
                                 Row(
@@ -293,6 +299,7 @@ private fun SearchField(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("搜索...") },
             singleLine = true,
+            shape = RoundedCornerShape(12.dp),
             trailingIcon = {
                 if (query.isNotEmpty()) {
                     IconButton(onClick = { onQueryChange("") }) {

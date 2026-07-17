@@ -5,13 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.pang.mdreader.model.ReaderTheme
 import com.pang.mdreader.ui.navigation.AppNavHost
 import com.pang.mdreader.ui.navigation.Routes
 import com.pang.mdreader.ui.theme.MdReaderTheme
@@ -56,7 +57,10 @@ fun MdReaderApp() {
             modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 if (showBottomNav) {
-                    NavigationBar {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = NavigationBarDefaults.Elevation,
+                    ) {
                         NavigationBarItem(
                             selected = currentRoute == Routes.BROWSER,
                             onClick = {
@@ -70,6 +74,11 @@ fun MdReaderApp() {
                                 Icon(Icons.Default.Folder, contentDescription = "文件浏览")
                             },
                             label = { Text("文件") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                            ),
                         )
                         NavigationBarItem(
                             selected = currentRoute == Routes.SETTINGS,
@@ -80,6 +89,11 @@ fun MdReaderApp() {
                                 Icon(Icons.Default.Settings, contentDescription = "设置")
                             },
                             label = { Text("设置") },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                            ),
                         )
                     }
                 }
@@ -88,8 +102,6 @@ fun MdReaderApp() {
             AppNavHost(
                 navController = navController,
                 readerViewModel = readerViewModel,
-                // Only pass bottom padding (bottom nav + system nav bar).
-                // Top padding is handled by each screen's own Scaffold.
                 modifier = Modifier.fillMaxSize(),
             )
         }

@@ -23,6 +23,9 @@ val WarmDarkMoss = Color(0xFFAAB596)
 
 // M3 Scheme Colors for the app shell (not reading surface)
 
+// Surface container levels for depth layering (M3 Expressive)
+// These replace elevation-based opacity for layered surfaces.
+
 // Warm Light M3
 val WarmLightPrimary = Color(0xFF7A4651)
 val WarmLightOnPrimary = Color(0xFFFFFFFF)
@@ -42,7 +45,13 @@ val WarmLightSurface = Color(0xFFFDF8F5)
 val WarmLightOnSurface = Color(0xFF1F1A18)
 val WarmLightSurfaceVariant = Color(0xFFF0E0DB)
 val WarmLightOnSurfaceVariant = Color(0xFF504542)
+val WarmLightSurfaceContainerLowest = Color(0xFFFFFBF8)
+val WarmLightSurfaceContainerLow = Color(0xFFFEF1EC)
+val WarmLightSurfaceContainer = Color(0xFFF9EBE6)
+val WarmLightSurfaceContainerHigh = Color(0xFFF3E5E0)
+val WarmLightSurfaceContainerHighest = Color(0xFFEDDFDA)
 val WarmLightOutline = Color(0xFF837471)
+val WarmLightOutlineVariant = Color(0xFFD5C4BF)
 val WarmLightError = Color(0xFFBA1A1A)
 
 // Warm Dark M3
@@ -64,7 +73,13 @@ val WarmDarkSurface = Color(0xFF1F1C1A)
 val WarmDarkOnSurface = Color(0xFFEBE1DD)
 val WarmDarkSurfaceVariant = Color(0xFF504542)
 val WarmDarkOnSurfaceVariant = Color(0xFFD5C4BF)
+val WarmDarkSurfaceContainerLowest = Color(0xFF1A1715)
+val WarmDarkSurfaceContainerLow = Color(0xFF221E1C)
+val WarmDarkSurfaceContainer = Color(0xFF272321)
+val WarmDarkSurfaceContainerHigh = Color(0xFF322D2B)
+val WarmDarkSurfaceContainerHighest = Color(0xFF3D3836)
 val WarmDarkOutline = Color(0xFF9E8E8A)
+val WarmDarkOutlineVariant = Color(0xFF504542)
 val WarmDarkError = Color(0xFFFFB4AB)
 
 // GitHub-inspired M3
@@ -82,4 +97,10 @@ val GitHubLightSurface = Color(0xFFFFFFFF)
 val GitHubLightOnSurface = Color(0xFF1F2328)
 val GitHubLightSurfaceVariant = Color(0xFFF6F8FA)
 val GitHubLightOnSurfaceVariant = Color(0xFF656D76)
+val GitHubLightSurfaceContainerLowest = Color(0xFFFFFFFF)
+val GitHubLightSurfaceContainerLow = Color(0xFFF8FAFD)
+val GitHubLightSurfaceContainer = Color(0xFFF3F5F8)
+val GitHubLightSurfaceContainerHigh = Color(0xFFEEF0F3)
+val GitHubLightSurfaceContainerHighest = Color(0xFFE8EAEE)
 val GitHubLightOutline = Color(0xFFD0D7DE)
+val GitHubLightOutlineVariant = Color(0xFFE1E4E8)

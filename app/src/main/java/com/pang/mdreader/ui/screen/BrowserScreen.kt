@@ -4,16 +4,24 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +52,6 @@ fun BrowserScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
-            // Take persistable permission so the URI survives reboots
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
             viewModel.openWorkspace(uri)
@@ -61,7 +68,6 @@ fun BrowserScreen(
             }
 
             uiState.workspaceUri == null -> {
-                // Empty state - no workspace
                 EmptyWorkspaceState(
                     onOpenFolder = { folderPicker.launch(null) },
                     modifier = Modifier.align(Alignment.Center),
@@ -69,30 +75,12 @@ fun BrowserScreen(
             }
 
             uiState.files.isEmpty() -> {
-                // Workspace open but no markdown files found
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "未找到 Markdown 文件",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "工作区中没有 .md 文件",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                EmptyFilesState(
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
 
             else -> {
-                // File tree
                 FileTree(
                     files = uiState.files,
                     expandedDirs = uiState.expandedDirs,
@@ -115,44 +103,79 @@ private fun EmptyWorkspaceState(
         modifier = modifier.padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.LibraryBooks,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-        )
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+            ),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.LibraryBooks,
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(24.dp)
+                    .size(56.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = "MD Reader",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 16.dp),
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = "选择一个包含 Markdown 文件的文件夹开始阅读",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
             textAlign = TextAlign.Center,
         )
 
+        Spacer(modifier = Modifier.height(28.dp))
+
         Button(
             onClick = onOpenFolder,
-            modifier = Modifier.padding(top = 24.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-            ),
+            modifier = Modifier.fillMaxWidth(0.6f),
+            shape = RoundedCornerShape(12.dp),
         ) {
             Icon(
                 imageVector = Icons.Default.FolderOpen,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )
+            Spacer(modifier = Modifier.size(8.dp))
             Text(
                 text = "打开文件夹",
-                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.labelLarge,
             )
         }
+    }
+}
+
+@Composable
+private fun EmptyFilesState(
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "未找到 Markdown 文件",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "工作区中没有 .md 文件",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }

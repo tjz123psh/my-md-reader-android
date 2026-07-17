@@ -32,7 +32,13 @@ private val WarmLightColorScheme = lightColorScheme(
     onSurface = WarmLightOnSurface,
     surfaceVariant = WarmLightSurfaceVariant,
     onSurfaceVariant = WarmLightOnSurfaceVariant,
+    surfaceContainerLowest = WarmLightSurfaceContainerLowest,
+    surfaceContainerLow = WarmLightSurfaceContainerLow,
+    surfaceContainer = WarmLightSurfaceContainer,
+    surfaceContainerHigh = WarmLightSurfaceContainerHigh,
+    surfaceContainerHighest = WarmLightSurfaceContainerHighest,
     outline = WarmLightOutline,
+    outlineVariant = WarmLightOutlineVariant,
     error = WarmLightError,
 )
 
@@ -55,7 +61,13 @@ private val WarmDarkColorScheme = darkColorScheme(
     onSurface = WarmDarkOnSurface,
     surfaceVariant = WarmDarkSurfaceVariant,
     onSurfaceVariant = WarmDarkOnSurfaceVariant,
+    surfaceContainerLowest = WarmDarkSurfaceContainerLowest,
+    surfaceContainerLow = WarmDarkSurfaceContainerLow,
+    surfaceContainer = WarmDarkSurfaceContainer,
+    surfaceContainerHigh = WarmDarkSurfaceContainerHigh,
+    surfaceContainerHighest = WarmDarkSurfaceContainerHighest,
     outline = WarmDarkOutline,
+    outlineVariant = WarmDarkOutlineVariant,
     error = WarmDarkError,
 )
 
@@ -74,7 +86,13 @@ private val GitHubLightColorScheme = lightColorScheme(
     onSurface = GitHubLightOnSurface,
     surfaceVariant = GitHubLightSurfaceVariant,
     onSurfaceVariant = GitHubLightOnSurfaceVariant,
+    surfaceContainerLowest = GitHubLightSurfaceContainerLowest,
+    surfaceContainerLow = GitHubLightSurfaceContainerLow,
+    surfaceContainer = GitHubLightSurfaceContainer,
+    surfaceContainerHigh = GitHubLightSurfaceContainerHigh,
+    surfaceContainerHighest = GitHubLightSurfaceContainerHighest,
     outline = GitHubLightOutline,
+    outlineVariant = GitHubLightOutlineVariant,
 )
 
 /**
@@ -110,6 +128,7 @@ fun MdReaderTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content,
     )
 }

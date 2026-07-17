@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,9 +18,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -87,17 +89,28 @@ fun SettingsScreen(
                 text = "阅读主题",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            ReaderTheme.entries.forEach { theme ->
-                ThemeOption(
-                    theme = theme,
-                    isSelected = currentTheme.theme == theme,
-                    onClick = { readerViewModel.setTheme(theme) },
-                )
-                HorizontalDivider()
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            ) {
+                Column {
+                    ReaderTheme.entries.forEachIndexed { index, theme ->
+                        ThemeOption(
+                            theme = theme,
+                            isSelected = currentTheme.theme == theme,
+                            onClick = { readerViewModel.setTheme(theme) },
+                        )
+                        if (index < ReaderTheme.entries.size - 1) {
+                            // No divider needed with card containment
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -107,25 +120,35 @@ fun SettingsScreen(
                 text = "关于",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "MD Reader",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = "版本 1.0.0",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "本地 Markdown 阅读器，支持 .md / .markdown / .mdown / .mkd",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "MD Reader",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "版本 1.0.0",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "本地 Markdown 阅读器，支持 .md / .markdown / .mdown / .mkd",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -134,41 +157,49 @@ fun SettingsScreen(
                 text = "检查更新",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !checkingUpdate) {
-                        if (!checkingUpdate) {
-                            checkingUpdate = true
-                            scope.launch {
-                                updateInfo = UpdateChecker.check()
-                                checkingUpdate = false
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !checkingUpdate) {
+                            if (!checkingUpdate) {
+                                checkingUpdate = true
+                                scope.launch {
+                                    updateInfo = UpdateChecker.check()
+                                    checkingUpdate = false
+                                }
                             }
                         }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (checkingUpdate) "正在检查..." else "检查新版本",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = "当前版本 1.0.0",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    .padding(vertical = 12.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (checkingUpdate) "正在检查..." else "检查新版本",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = "当前版本 1.0.0",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (checkingUpdate) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+                    if (checkingUpdate) {
+                        Spacer(modifier = Modifier.size(8.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
                 }
             }
         }
@@ -226,7 +257,7 @@ private fun ThemeOption(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -234,6 +265,7 @@ private fun ThemeOption(
                 text = theme.label,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = when (theme) {
                     ReaderTheme.WARM_LIGHT -> "暖色纸张背景，适合白天阅读"
