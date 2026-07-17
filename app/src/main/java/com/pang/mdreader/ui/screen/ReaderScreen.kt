@@ -31,7 +31,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
@@ -102,18 +101,16 @@ fun ReaderScreen(
         scrollHeadingCounter++
     }
 
-    // Controls auto-hide for fullscreen
-    var controlsVisible by remember { mutableStateOf(true) }
+    // Controls start HIDDEN — tap screen to show, auto-hide after 3s idle
+    var controlsVisible by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var hideJob by remember { mutableStateOf<Job?>(null) }
 
     fun scheduleAutoHide() {
         hideJob?.cancel()
-        if (state.isFullscreen) {
-            hideJob = scope.launch {
-                delay(3000)
-                controlsVisible = false
-            }
+        hideJob = scope.launch {
+            delay(3000)
+            controlsVisible = false
         }
     }
 
@@ -122,22 +119,11 @@ fun ReaderScreen(
         scheduleAutoHide()
     }
 
-    // Start/stop auto-hide when fullscreen state changes
-    LaunchedEffect(state.isFullscreen) {
-        if (state.isFullscreen) {
-            controlsVisible = false
-        } else {
-            hideJob?.cancel()
-            controlsVisible = true
-        }
-    }
-
+    // Tap anywhere on screen → show controls (non-consuming, WebView still works)
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Tap detection for fullscreen mode — watch without consuming
-            .pointerInput(state.isFullscreen) {
-                if (!state.isFullscreen) return@pointerInput
+            .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
@@ -146,9 +132,7 @@ fun ReaderScreen(
                             val up = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                             val upChange = up.changes.firstOrNull()
                             if (upChange != null && !upChange.pressed) {
-                                scope.launch {
-                                    showControls()
-                                }
+                                scope.launch { showControls() }
                             }
                         }
                     }
@@ -188,17 +172,6 @@ fun ReaderScreen(
             }
 
             state.content.isNotEmpty() -> {
-                // In non-fullscreen mode, add top padding to avoid content behind status bar
-                val contentModifier = if (!state.isFullscreen) {
-                    Modifier
-                        .fillMaxSize()
-                        .windowInsetsPadding(
-                            WindowInsets.statusBars.only(WindowInsetsSides.Top)
-                        )
-                        .padding(top = 48.dp)
-                } else {
-                    Modifier.fillMaxSize()
-                }
                 MarkdownView(
                     markdownContent = state.content,
                     theme = state.theme,
@@ -210,16 +183,14 @@ fun ReaderScreen(
                     onHeadingsReady = { viewModel.setOutline(it) },
                     onScrollToHeading = scrollTargetHeading,
                     onScrollToLine = scrollTargetLine,
-                    modifier = contentModifier,
+                    modifier = Modifier.fillMaxSize(),
                 )
-                // Use LaunchedEffect keyed by counters (handled after return)
             }
         }
 
         // Top bar — compact: only back + title
-        val topBarVisible = if (state.isFullscreen) controlsVisible else true
         AnimatedVisibility(
-            visible = topBarVisible && state.content.isNotEmpty() && !state.isLoading,
+            visible = controlsVisible && state.content.isNotEmpty() && !state.isLoading,
             enter = slideInVertically(spring()) { -it },
             exit = slideOutVertically(spring()) { -it },
             modifier = Modifier.align(Alignment.TopCenter),
@@ -251,9 +222,8 @@ fun ReaderScreen(
         }
 
         // Bottom toolbar — all controls here
-        val bottomBarVisible = if (state.isFullscreen) controlsVisible else true
         AnimatedVisibility(
-            visible = bottomBarVisible && state.content.isNotEmpty() && !state.isLoading,
+            visible = controlsVisible && state.content.isNotEmpty() && !state.isLoading,
             enter = slideInVertically(spring()) { it },
             exit = slideOutVertically(spring()) { it },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -321,33 +291,18 @@ fun ReaderScreen(
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = "目录")
                     }
 
-                    // Fullscreen toggle
-                    IconButton(onClick = {
-                        viewModel.toggleFullscreen()
-                        controlsVisible = false
-                    }) {
-                        Icon(
-                            if (state.isFullscreen) Icons.Default.Close else Icons.Default.Fullscreen,
-                            contentDescription = if (state.isFullscreen) "退出全屏" else "全屏",
-                        )
-                    }
                 }
             }
         }
 
         // Search panel
         AnimatedVisibility(
-            visible = showSearchBar || state.searchQuery.isNotEmpty(),
+            visible = (showSearchBar || state.searchQuery.isNotEmpty()) && controlsVisible,
             enter = fadeIn(spring()),
             exit = fadeOut(spring()),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .then(
-                    if (!state.isFullscreen || topBarVisible)
-                        Modifier.padding(top = 64.dp)
-                    else
-                        Modifier
-                ),
+                .padding(top = 64.dp),
         ) {
             SearchResultsPanel(
                 query = state.searchQuery,

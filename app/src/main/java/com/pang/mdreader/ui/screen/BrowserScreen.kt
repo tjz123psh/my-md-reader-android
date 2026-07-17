@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -208,15 +208,45 @@ fun BrowserScreen(
             }
 
             else -> {
-                // File tree
-                FileTree(
-                    files = uiState.files,
-                    expandedDirs = uiState.expandedDirs,
-                    selectedFile = null,
-                    onToggleDir = { viewModel.toggleDirectory(it) },
-                    onSelectFile = { onFileSelected(it) },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // File tree with workspace header
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Workspace header with folder switcher
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = uiState.workspaceName,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = { folderPicker.launch(null) },
+                        ) {
+                            Text("切换文件夹", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+
+                    FileTree(
+                        files = uiState.files,
+                        expandedDirs = uiState.expandedDirs,
+                        selectedFile = null,
+                        onToggleDir = { viewModel.toggleDirectory(it) },
+                        onSelectFile = { onFileSelected(it) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
