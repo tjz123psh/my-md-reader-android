@@ -115,9 +115,7 @@ class FileRepository(private val context: Context) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
                 ?: return@withContext Result.failure(Exception("Cannot open file"))
-            val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-            val text = reader.readText()
-            reader.close()
+            val text = inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
             Result.success(text)
         } catch (e: Exception) {
             Result.failure(e)

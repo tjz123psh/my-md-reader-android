@@ -21,9 +21,15 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("../release.keystore")
-            storePassword = "mdreader123"
-            keyAlias = "md-reader"
-            keyPassword = "mdreader123"
+            storePassword = (project.findProperty("RELEASE_STORE_PASSWORD") as? String)
+                ?: System.getenv("RELEASE_STORE_PASSWORD")
+                ?: "mdreader123"
+            keyAlias = (project.findProperty("RELEASE_KEY_ALIAS") as? String)
+                ?: System.getenv("RELEASE_KEY_ALIAS")
+                ?: "md-reader"
+            keyPassword = (project.findProperty("RELEASE_KEY_PASSWORD") as? String)
+                ?: System.getenv("RELEASE_KEY_PASSWORD")
+                ?: "mdreader123"
         }
     }
 
