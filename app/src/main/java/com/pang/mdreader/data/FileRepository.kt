@@ -112,40 +112,97 @@ class FileRepository(private val context: Context) {
                 return@replace match.value
             }
 
-            val resolvedDocId = try { resolveImagePath(parentDocId, rawPath) } catch (_: Exception) { rawPath }
-            // Use SAF API to build a proper content:// URI (avoids double-encoding bugs)
-            val imageUri = DocumentsContract.buildDocumentUri(authority, resolvedDocId)
-
-            val alt = match.groupValues[1].ifEmpty {
+            // Try multiple candidate paths (same dir, Obsidian attachment subdirs, etc.)
+            var foundStream: java.io.InputStream? = null
+            var foundMime = "image/png"
+            var foundAlt = match.groupValues[1].ifEmpty {
                 rawPath.substringAfterLast("/").substringBeforeLast(".")
             }
-            android.util.Log.d("MDReader-IMG", "resolveImageUris: $rawPath → $imageUri")
-            "![$alt]($imageUri)"
+
+            for (candidateDocId in resolveImageCandidates(parentDocId, rawPath)) {
+                val candUri = DocumentsContract.buildDocumentUri(authority, candidateDocId)
+                try {
+                    val stream = context.contentResolver.openInputStream(candUri)
+                    if (stream != null) {
+                        android.util.Log.d("MDReader-IMG", "FOUND: $rawPath → $candidateDocId")
+                        foundStream = stream
+                        foundMime = getImageMimeType(rawPath, candUri)
+                        break
+                    }
+                } catch (_: java.io.FileNotFoundException) {
+                    android.util.Log.d("MDReader-IMG", "NOT_FOUND: $candidateDocId ($rawPath)")
+                } catch (_: SecurityException) {
+                    android.util.Log.d("MDReader-IMG", "PERM_DENIED: $candidateDocId ($rawPath)")
+                }
+            }
+
+            if (foundStream != null) {
+                try {
+                    val bytes = foundStream.use { it.readBytes() }
+                    if (bytes.isNotEmpty()) {
+                        val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        return@replace "![$foundAlt](data:$foundMime;base64,$b64)"
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("MDReader-IMG", "READ_ERROR: ${e.message} | $rawPath")
+                }
+            } else {
+                android.util.Log.e("MDReader-IMG", "ALL_FAILED: $rawPath (parent=$parentDocId)")
+            }
+            match.value
         }
     }
 
     /**
-     * Resolve a relative image path against the markdown file's parent directory ID.
+     * Generate candidate document IDs for a relative image path.
+     * Handles: same directory, Obsidian attachment subdirectories.
      */
-    private fun resolveImagePath(parentPath: String, imagePath: String): String {
-        return if (imagePath.startsWith("/")) {
-            // Absolute path relative to SAF root
-            imagePath.removePrefix("/")
-        } else if (parentPath.isEmpty()) {
-            imagePath
-        } else {
-            // Resolve relative path, handling . and ..
-            val parts = mutableListOf<String>()
-            for (segment in parentPath.split("/") + imagePath.split("/")) {
-                when (segment) {
-                    ".", "" -> { /* skip */ }
-                    ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
-                    else -> parts.add(segment)
-                }
-            }
-            parts.joinToString("/")
+    private fun resolveImageCandidates(parentPath: String, imagePath: String): List<String> {
+        val candidates = mutableListOf<String>()
+
+        if (imagePath.startsWith("/")) {
+            candidates.add(imagePath.removePrefix("/"))
+            return candidates
         }
+
+        if (parentPath.isEmpty()) {
+            candidates.add(imagePath)
+            return candidates
+        }
+
+        // Candidate 1: directly resolve in parent (handles . and ..)
+        candidates.add(resolveSingle(parentPath, imagePath))
+
+        // Candidate 2+: try Obsidian attachment folder conventions
+        val obsidianAttachDirs = listOf("附件", "attachments", "assets", "images", "_resources")
+        for (dir in obsidianAttachDirs) {
+            val attachCandidate = if (parentPath.contains("/$dir/") || parentPath.endsWith("/$dir")) {
+                // Image is in a parent + attachment dir; file ref is just the filename
+                resolveSingle(parentPath, "$dir/$imagePath")
+            } else {
+                // Try parent/attachment-subdir/ directly
+                "$parentPath/$dir/$imagePath"
+            }
+            if (attachCandidate != candidates.first()) {
+                candidates.add(attachCandidate)
+            }
+        }
+        return candidates
     }
+
+    private fun resolveSingle(parentPath: String, imagePath: String): String {
+        val parts = mutableListOf<String>()
+        for (segment in (parentPath.split("/") + imagePath.split("/"))) {
+            when (segment) {
+                ".", "" -> {}
+                ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
+                else -> parts.add(segment)
+            }
+        }
+        return parts.joinToString("/")
+    }
+
+
 
     private fun getImageMimeType(path: String, uri: Uri): String {
         val ext = path.substringAfterLast('.', "").lowercase()
