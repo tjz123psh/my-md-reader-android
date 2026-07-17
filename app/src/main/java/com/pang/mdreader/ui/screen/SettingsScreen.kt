@@ -242,7 +242,7 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { updateInfo = null },
                 title = { Text("已是最新版本") },
-                text = { Text("当前版本 1.1.0 已是最新。") },
+                text = { Text("当前版本 ${updateInfo!!.latestVersion} 已是最新。") },
                 confirmButton = {
                     Button(onClick = { updateInfo = null }) {
                         Text("确定")
