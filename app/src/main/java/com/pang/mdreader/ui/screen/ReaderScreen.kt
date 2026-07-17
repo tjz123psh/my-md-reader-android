@@ -81,6 +81,7 @@ fun ReaderScreen(
     var showOutline by remember { mutableStateOf(false) }
     var scrollToHeading by remember { mutableStateOf<String?>(null) }
     var scrollToLine by remember { mutableStateOf<Int?>(null) }
+    var showSearchBar by remember { mutableStateOf(false) }
 
     // React to search navigation
     LaunchedEffect(scrollToLine) {
@@ -225,7 +226,10 @@ fun ReaderScreen(
                 ) {
                     // Search
                     IconButton(onClick = {
-                        viewModel.performSearch(state.searchQuery)
+                        showSearchBar = !showSearchBar
+                        if (!showSearchBar) {
+                            viewModel.performSearch("")
+                        }
                     }) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
                     }
@@ -276,12 +280,19 @@ fun ReaderScreen(
             }
         }
 
-        // Search panel (drop-down from top)
+        // Search panel (below top bar when visible, top of screen in fullscreen)
         AnimatedVisibility(
-            visible = state.searchQuery.isNotEmpty(),
+            visible = showSearchBar || state.searchQuery.isNotEmpty(),
             enter = fadeIn(spring()),
             exit = fadeOut(spring()),
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .then(
+                    if (!state.isFullscreen)
+                        Modifier.padding(top = 64.dp)
+                    else
+                        Modifier
+                ),
         ) {
             SearchResultsPanel(
                 query = state.searchQuery,
@@ -294,7 +305,10 @@ fun ReaderScreen(
                 onPrev = {
                     scrollToLine = viewModel.goToPrevSearchResult()
                 },
-                onClose = { viewModel.performSearch("") },
+                onClose = {
+                    showSearchBar = false
+                    viewModel.performSearch("")
+                },
             )
         }
 
