@@ -157,8 +157,11 @@ class FileRepository(private val context: Context) {
             }
 
             android.util.Log.e("MDReader-IMG", "ALL_FAILED: $rawPath (parentDocId=$parentDocId)")
-            // Don't return original — show helpful placeholder instead of raw syntax
-            return@replace "![图片未找到: $alt]()"
+            // Keep original if markdown standard syntax; convert Obsidian ![[ to standard alt
+            if (match.groupValues[2].isNotEmpty()) {
+                return@replace match.value
+            }
+            return@replace "![${alt}]()"
         }
     }
 
