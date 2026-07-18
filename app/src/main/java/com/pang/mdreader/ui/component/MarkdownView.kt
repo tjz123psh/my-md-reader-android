@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.util.Base64
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
+import android.webkit.MimeTypeMap
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -210,7 +211,20 @@ fun MarkdownView(
                             try {
                                 val inputStream = ctx.contentResolver.openInputStream(url)
                                 if (inputStream != null) {
-                                    val mimeType = ctx.contentResolver.getType(url) ?: "image/*"
+                                    val providerMime = ctx.contentResolver.getType(url)
+                                    val documentName = try {
+                                        android.provider.DocumentsContract.getDocumentId(url)
+                                            .substringAfterLast('/')
+                                    } catch (_: Exception) {
+                                        url.lastPathSegment.orEmpty()
+                                    }
+                                    val extension = documentName.substringAfterLast('.', "").lowercase()
+                                    val extensionMime = MimeTypeMap.getSingleton()
+                                        .getMimeTypeFromExtension(extension)
+                                    val mimeType = providerMime
+                                        ?.takeIf { it.startsWith("image/") }
+                                        ?: extensionMime
+                                        ?: "image/*"
                                     android.util.Log.d("MDReader-IMG", "serve: $url ($mimeType)")
                                     return android.webkit.WebResourceResponse(mimeType, null, inputStream)
                                 }

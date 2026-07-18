@@ -24,7 +24,7 @@ object UpdateChecker {
     private const val RELEASES_URL = "https://github.com/tjz123psh/my-md-reader-android/releases"
     private const val DOWNLOAD_BASE = "https://github.com/tjz123psh/my-md-reader-android/releases/download"
     /** Single source of truth for app version. Keep in sync with app/build.gradle.kts → versionName */
-    const val CURRENT_VERSION = "1.3.3"
+    const val CURRENT_VERSION = "1.3.4"
 
     /**
      * Check for updates using two strategies:
@@ -112,7 +112,7 @@ object UpdateChecker {
         conn.connectTimeout = 10000
         conn.readTimeout = 5000
 
-        // Read Location header from redirect (e.g. /releases/tag/v1.3.3)
+        // Read Location header from redirect (e.g. /releases/tag/v1.3.4)
         val location = conn.getHeaderField("Location")
         conn.disconnect()
 

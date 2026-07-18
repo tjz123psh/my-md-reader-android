@@ -8,9 +8,9 @@
 - 下载: Releases 页面有 debug + release APK
 - CI: 手动构建上传（无自动流水线）
 
-## 当前版本: v1.3.3
+## 当前版本: v1.3.4
 
-Build: v7, Tag: `v1.3.3`
+Build: v8, Tag: `v1.3.4`
 之前是一个国内程序员写的，两个用户，这是传给第二个AI做的。我是第三个AI。
 
 ## 验证通过的修复
@@ -64,38 +64,20 @@ Build: v7, Tag: `v1.3.3`
   - 返回 `JSON.stringify(array)` 时 → Android 再编码一遍成 `"\"[{...}]\""`，`JSONArray()` 失败
   - 正确写法：**不**用 `JSON.stringify()`，let `evaluateJavascript` 自动编码
 
-## ⚠️ 未解决问题：图片不显示
+## 已解决问题：Obsidian 图片不显示
 
-**现象**：`![[Pasted image.png]]` 在阅读器中不显示图片内容，只显示 alt 文字或不显示。
+**原现象**：`![[Pasted image.png]]` 在阅读器中不显示图片内容，只显示 alt 文字或不显示。
 
-**当前策略**（`FileRepository.resolveImageUris`）：
+**v1.3.4 最终策略**（已真机验证）：
 
 1. 在 markdown 文本中匹配 `![...](...)` 和 `![[...]]` 两种语法
-2. 解析得到图片文件名（如 `Pasted image.png`）
-3. **策略 1** — 候选路径探测：
-   - 尝试 md 同目录 + 同目录下的附件子目录（`附件/`, `附/`, `attachments/`, `assets/`, `images/`, `_resources/`, `media/`）
-   - 尝试父目录 + 父目录的附件子目录
-   - 对每个候选路径构建 `DocumentContract.buildDocumentUri()`，尝试 `openInputStream()` 测试文件存在
-4. **策略 2** — SAF 树搜索：
-   - 通过 `DocumentsContract.buildChildDocumentsUriUsingTree()` 查询每个候选目录
-   - 匹配 `mime.startsWith("image/")` 且文件名一致的文件
-5. 找到后 base64 编码嵌入为 `data:image/png;base64,...`
-6. 所有策略失败 → 保持原始语法或 `![alt]()`
+2. 解码 URL 路径，并先尝试笔记相对路径和 vault 根相对路径
+3. 未命中时，从 SAF tree 根目录按文件提供器返回的真实 document ID 广度优先搜索，支持任意名称和任意层级的自定义附件目录
+4. 找到后将 Markdown 改写为带 tree 权限的 `content://` URI
+5. `MarkdownView.shouldInterceptRequest` 通过 ContentResolver 流式返回图片，并按扩展名补偿错误的 MIME 类型
+6. 最近文件入口使用其自身保存的 workspace URI；旧版本写坏的 workspace URI 会自动恢复为规范 tree URI
 
-**为什么可能还不行？**
-
-- Obsidian 的附件目录配置是用户可自定义的，默认在 vault 根级的 `附件/` folder，但用户可能改了
-- Obsidian 的粘贴图片路径可能包含空格或特殊字符
-- `searchImageInTree` 的搜索目录列表不够全（没有用户自定义的附件目录名）
-- `openInputStream` 虽然能在 Android 14+ 工作，但需要验证 `DocumentsContract.buildDocumentUri` 构建的 URI 确实有权限
-- 策略 2 需要 `rootTreeUri` 参数，只有在 `BrowserViewModel` 中打开文件时才传入；如果从最近文件打开的路径没有 `rootTreeUri`，策略 2 不会执行
-
-**建议下一步**（按优先级）：
-
-1. **加日志 debug**：在 `resolveImageUris` 开始处打印 `parentDocId`、`rawPath`、所有候选路径和 `rootTreeUri` 是否为空。让用户跑一次后看 logcat
-2. **增强搜索范围**：让用户输入实际的附件目录名，而不是硬编码列表
-3. **改用 `shouldInterceptRequest`**：放弃 base64 嵌入，改为 markdown 中插 `content://` URI，由 WebViewClient 拦截并流式返回。这样无大小限制、无需 base64 编码、一步到位
-   - 已经在 `MarkdownView.kt` 的 `WebViewClient` 中添加了 `shouldInterceptRequest` 实现（曾尝试过但被回退）
+真机验证日志标签：`MDReader-IMG`。正常加载会出现 `tree match`（需要树搜索时）和 `serve`。
 
 ## 构建与发布
 
@@ -105,7 +87,7 @@ export ANDROID_HOME="$HOME/android-sdk"
 ./gradlew assembleDebug assembleRelease -x lintVitalAnalyzeRelease
 
 # 发布
-gh release create v1.3.3 --title "v1.3.3" --notes "..." \
+gh release create v1.3.4 --title "v1.3.4" --notes "..." \
   app/build/outputs/apk/debug/app-debug.apk \
   app/build/outputs/apk/release/app-release.apk
 ```
@@ -130,3 +112,4 @@ gh release create v1.3.3 --title "v1.3.3" --notes "..." \
 | v1.3.1 | 7 | 微调（跳过，未发布） |
 | v1.3.2 | 7 | 更新检查 + 小修复（跳过） |
 | v1.3.3 | 7 | 子目录排序、大纲面板、图片修复、SAF 子目录查询、WebView 生命周期 |
+| v1.3.4 | 8 | 真机验证的 Obsidian 图片修复、全 SAF 树附件搜索、工作区 URI 修复 |

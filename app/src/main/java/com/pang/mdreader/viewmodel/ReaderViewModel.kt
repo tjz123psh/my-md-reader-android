@@ -38,6 +38,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepo.DEFAULT_ZOOM)
 
     private var currentFileUri: Uri? = null
+    private var currentRootTreeUri: Uri? = null
 
     init {
         viewModelScope.launch {
@@ -52,9 +53,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     fun loadFile(fileNode: FileNode, rootTreeUri: Uri? = null) {
         if (fileNode.isDirectory) return
-        if (fileNode.uri == currentFileUri && _state.value.content.isNotEmpty()) return
+        if (
+            fileNode.uri == currentFileUri &&
+            rootTreeUri == currentRootTreeUri &&
+            _state.value.content.isNotEmpty()
+        ) return
 
         currentFileUri = fileNode.uri
+        currentRootTreeUri = rootTreeUri
         viewModelScope.launch {
             _state.value = _state.value.copy(
                 isLoading = true,
@@ -69,13 +75,15 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             )
 
             settingsRepo.setLastDocument(fileNode.uri.toString())
-            settingsRepo.setLastWorkspace(
-                fileNode.uri.toString().substringBeforeLast("/")
-            )
+            // Never derive a workspace by truncating a document URI: encoded SAF document
+            // IDs contain no path separators, so that produces an invalid tree URI.
+            if (rootTreeUri != null) {
+                settingsRepo.setLastWorkspace(rootTreeUri.toString())
+            }
 
             val result = fileRepo.readFile(fileNode.uri)
             result.onSuccess { content ->
-                // Resolve image references to base64 data URIs
+                // Resolve image references to SAF content URIs streamed by the WebView.
                 val processed = fileRepo.resolveImageUris(content, fileNode.uri, rootTreeUri)
                 _state.value = _state.value.copy(
                     content = processed,

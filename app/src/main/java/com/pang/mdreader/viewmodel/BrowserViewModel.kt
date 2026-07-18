@@ -55,17 +55,18 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private var loadJob: Job? = null
 
     fun openWorkspace(uri: Uri) {
+        val treeUri = fileRepo.normalizeTreeUri(uri)
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.value = BrowserUiState(
-                workspaceUri = uri,
-                workspaceName = fileRepo.getFileName(uri),
+                workspaceUri = treeUri,
+                workspaceName = fileRepo.getFileName(treeUri),
                 isLoading = true,
             )
-            settingsRepo.setLastWorkspace(uri.toString())
+            settingsRepo.setLastWorkspace(treeUri.toString())
 
             try {
-                val children = fileRepo.listDirectory(uri, uri)
+                val children = fileRepo.listDirectory(treeUri, treeUri)
                 _uiState.value = _uiState.value.copy(
                     files = children,
                     isLoading = false,
